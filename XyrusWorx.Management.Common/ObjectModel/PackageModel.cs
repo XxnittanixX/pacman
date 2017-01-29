@@ -193,7 +193,7 @@ namespace XyrusWorx.Management.ObjectModel
 					files.Add(fileElement);
 				}
 
-				metadata.Add(files);
+				package.Add(files);
 			}
 
 			package.Save(writer, SaveOptions.None);

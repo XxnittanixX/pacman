@@ -149,7 +149,7 @@ namespace XyrusWorx.Management.Pacman.Controllers
 
 			// ReSharper disable once UnusedVariable
 			var paddedTag = $"[ {tag.PadLeft(5, ' ')} ]";
-			var text = $"{paddedTag} {message.Text}".WordWrap(Console.WindowWidth - 5, new string(' ', paddedTag.Length + 1), "");
+			var text = $"{paddedTag} {message.Text}";//.WordWrap(Console.WindowWidth - 5, new string(' ', paddedTag.Length + 1), "");
 			//var text = $"{message.Text}".WordWrap(Console.WindowWidth - 5, "", "");
 
 			stream.WriteLine(text);

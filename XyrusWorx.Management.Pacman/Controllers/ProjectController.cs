@@ -27,11 +27,22 @@ namespace XyrusWorx.Management.Pacman.Controllers
 			mApplication = application;
 
 			mDefinitionBuilders.Reset(
-				from typeInfo in typeof(ProjectDefinition).Assembly.GetLoadableTypeInfos()
-
+				from typeInfo in typeof(ProjectController).Assembly.GetLoadableTypeInfos()
 				where !typeInfo.IsAbstract && !typeInfo.IsInterface
 				where typeof(ProjectDefinition).IsAssignableFrom(typeInfo.AsType())
-				where typeInfo.DeclaredConstructors.Any(x => x.IsPublic && x.GetParameters().Length == 1 && x.GetParameters()[0].ParameterType == typeof(string))
+
+				let matchingConstructors =
+					from constructor in typeInfo.DeclaredConstructors
+					where constructor.IsPublic
+
+					let parameters = constructor.GetParameters()
+					where parameters.Length == 1
+
+					let parameter = parameters[0]
+					where parameter.ParameterType == typeof(string)
+
+					select constructor
+				where matchingConstructors.Any()
 
 				select new Func<string, ProjectDefinition>(s => (ProjectDefinition)Activator.CreateInstance(typeInfo.AsType(), s)));
 		}
