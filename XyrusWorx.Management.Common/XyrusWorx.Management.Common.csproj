@@ -2,9 +2,9 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard1.6;net462</TargetFrameworks>
     <RootNamespace>XyrusWorx.Management</RootNamespace>
-    <AssemblyName>xwmgmt</AssemblyName>
+    <AssemblyName>XyrusWorx.Management</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="XyrusWorx.Foundation" Version="1.9.5" />
+    <PackageReference Include="XyrusWorx.Foundation" Version="[1.9.0,2.0.0)" />
   </ItemGroup>
 </Project>
