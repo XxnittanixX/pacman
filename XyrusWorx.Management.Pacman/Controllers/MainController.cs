@@ -79,13 +79,13 @@ namespace XyrusWorx.Management.Pacman.Controllers
 				{
 					return Result.CreateError($"Failed to access target directory \"{TargetDirectory}\": {exception.Message}");
 				}
+
+				Log.WriteInformation($"Selecting output path: {TargetDirectory}");
 			}
 			else
 			{
-				TargetDirectory = Environment.CurrentDirectory;
+				TargetDirectory = null;
 			}
-
-			Log.WriteInformation($"Selecting output path: {TargetDirectory}");
 
 			return base.InitializeOverride();
 		}
@@ -94,21 +94,15 @@ namespace XyrusWorx.Management.Pacman.Controllers
 			var count = 0;
 			var matcher = new Minimatcher(MinimatchPattern, new Options { IgnoreCase = true });
 			var baseDirectory = new DirectoryInfo(Environment.CurrentDirectory);
-			var targetStore = new FileSystemStore(TargetDirectory);
+			var targetStore = string.IsNullOrWhiteSpace(TargetDirectory) ? null : new FileSystemStore(TargetDirectory);
 
 			foreach (var file in baseDirectory.GetFiles("*.*", SearchOption.AllDirectories))
 			{
 				var relativePath = file.FullName.Substring(baseDirectory.FullName.Length + 1);
-
 				if (matcher.IsMatch(relativePath))
 				{
-					var store = new FileSystemStore(file.DirectoryName ?? Environment.CurrentDirectory);
-					if (store.Exists(file.Name))
-					{
-						Log.WriteInformation($"Exporting \"{relativePath}\"");
-						mProjects.Export(store.Open(file.Name), targetStore);
-						count++;
-					}
+					mProjects.Export(file.FullName, targetStore);
+					count++;
 				}
 			}
 

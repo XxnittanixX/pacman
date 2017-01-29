@@ -126,8 +126,7 @@
     <Compile Include="Controllers\MainController.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Strategies\MsBuild15PackagingStrategy.cs" />
-    <Compile Include="Core\PackagingStategy.cs" />
+    <Compile Include="Strategies\MSBuildVersion15ProjectDefinition.cs" />
     <Compile Include="Controllers\ProjectController.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>

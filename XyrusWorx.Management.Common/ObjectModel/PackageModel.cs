@@ -52,7 +52,7 @@ namespace XyrusWorx.Management.ObjectModel
 		public List<DependencyModel> Dependencies { get; } = new List<DependencyModel>();
 
 		[NotNull]
-		public List<PackageContentModel> Files { get; } = new List<PackageContentModel>();
+		public List<PackageFileModel> Files { get; } = new List<PackageFileModel>();
 
 		[NotNull]
 		public List<StringKey> Tags { get; } = new List<StringKey>();
@@ -188,7 +188,7 @@ namespace XyrusWorx.Management.ObjectModel
 					var fileElement = new XElement(XName.Get("file", xmlns));
 
 					fileElement.Add(new XAttribute(XName.Get("src", ""), file.Pattern));
-					fileElement.Add(new XAttribute(XName.Get("target", ""), file.TargetFolder));
+					fileElement.Add(new XAttribute(XName.Get("target", ""), new StringKeySequence(file.TargetFolder.Key).Concat(file.TargetFolder.ChildFolder).ToString(Path.DirectorySeparatorChar.ToString())));
 
 					files.Add(fileElement);
 				}

@@ -1,10 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
-  <PropertyGroup>
-    <TargetFrameworks>netstandard1.6;net462</TargetFrameworks>
-    <RootNamespace>XyrusWorx.Management</RootNamespace>
-    <AssemblyName>XyrusWorx.Management</AssemblyName>
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="XyrusWorx.Foundation" Version="[1.9.0,2.0.0)" />
-  </ItemGroup>
+	<PropertyGroup>
+		<EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+	</PropertyGroup>
+	<PropertyGroup>
+		<TargetFrameworks>netstandard1.6;net462</TargetFrameworks>
+		<RootNamespace>XyrusWorx.Management</RootNamespace>
+		<AssemblyName>XyrusWorx.Management</AssemblyName>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="XyrusWorx.Foundation" Version="[1.9.0,2.0.0)" />
+	</ItemGroup>
+	<ItemGroup>
+		<Compile Include="**\*.cs" Exclude="obj/**" />
+	</ItemGroup>
 </Project>

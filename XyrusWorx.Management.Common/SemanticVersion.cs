@@ -138,6 +138,11 @@ namespace XyrusWorx.Management
 		[Pure]
 		public SemanticVersionRange CompatibleRange()
 		{
+			if (IsEmpty)
+			{
+				return SemanticVersionRange.Any();
+			}
+
 			var min = new SemanticVersion(mMajor, mMinor);
 			var max = new SemanticVersion(mMajor + 1, 0);
 
@@ -315,7 +320,7 @@ namespace XyrusWorx.Management
 
 		public static bool TryParse(string versionString, out SemanticVersion version)
 		{
-			var regex = new Regex(@"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([\da-z\-]+(?:\.[\da-z\-]+)*))?(?:\+([\da-z\-]+(?:\.[\da-z\-]+)*))?$", RegexOptions.IgnoreCase);
+			var regex = new Regex(@"^(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?(?:-([\da-z\-]+(?:\.[\da-z\-]+)*))?(?:\+([\da-z\-]+(?:\.[\da-z\-]+)*))?$", RegexOptions.IgnoreCase);
 			var match = regex.Match(versionString ?? string.Empty);
 
 			if (!match.Success)
@@ -326,7 +331,7 @@ namespace XyrusWorx.Management
 
 			var major = int.Parse(match.Groups[1].Value);
 			var minor = int.Parse(match.Groups[2].Value);
-			var patch = int.Parse(match.Groups[3].Value);
+			var patch = !string.IsNullOrEmpty(match.Groups[3].Value) ? int.Parse(match.Groups[3].Value) : 0;
 
 			var preRelease = match.Groups[4].Value.Split(new[]{ '.' }, StringSplitOptions.RemoveEmptyEntries);
 			var metadata = match.Groups[5].Value.Split(new[] { '.' }, StringSplitOptions.RemoveEmptyEntries);

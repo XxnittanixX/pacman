@@ -4,19 +4,19 @@ using JetBrains.Annotations;
 namespace XyrusWorx.Management.ObjectModel
 {
 	[PublicAPI]
-	public class PackageContentModel
+	public class PackageFileModel
 	{
 		private readonly string mPattern;
-		private readonly string mTargetFolder;
+		private readonly PackageFolder mTargetFolder;
 
-		public PackageContentModel([NotNull] string pattern, [NotNull] string targetFolder)
+		public PackageFileModel([NotNull] string pattern, [NotNull] PackageFolder targetFolder)
 		{
 			if (pattern.NormalizeNull() == null)
 			{
 				throw new ArgumentNullException(nameof(pattern));
 			}
 
-			if (targetFolder.NormalizeNull() == null)
+			if (targetFolder == null)
 			{
 				throw new ArgumentNullException(nameof(targetFolder));
 			}
@@ -29,6 +29,6 @@ namespace XyrusWorx.Management.ObjectModel
 		public string Pattern => mPattern;
 
 		[NotNull]
-		public string TargetFolder => mTargetFolder;
+		public PackageFolder TargetFolder => mTargetFolder;
 	}
 }
