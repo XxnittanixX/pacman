@@ -1,0 +1,10 @@
+﻿<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard1.6;net462</TargetFrameworks>
+    <RootNamespace>XyrusWorx.Management</RootNamespace>
+    <AssemblyName>xwmgmt</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="XyrusWorx.Foundation" Version="1.9.5" />
+  </ItemGroup>
+</Project>
