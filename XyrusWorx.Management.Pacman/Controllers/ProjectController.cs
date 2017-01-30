@@ -46,7 +46,7 @@ namespace XyrusWorx.Management.Pacman.Controllers
 
 				select new Func<string, ProjectDefinition>(s => (ProjectDefinition)Activator.CreateInstance(typeInfo.AsType(), s)));
 		}
-		public void Export([NotNull] string filePath, IBlobStore packageTarget)
+		public void Export([NotNull] string filePath, IBlobStore packageTarget, string preRelease = null)
 		{
 			if (filePath.NormalizeNull() == null)
 			{
@@ -76,7 +76,7 @@ namespace XyrusWorx.Management.Pacman.Controllers
 				foundMatchingDefinition = true;
 				mApplication.Log.WriteInformation($"Packaging \"{projectClass}:{projectName}\" using \"{definitionName}\"");
 
-				var createPackageResult = definition.CreatePackage(mApplication.Log);
+				var createPackageResult = definition.CreatePackage(mApplication.Log, preRelease);
 				if (createPackageResult.HasError)
 				{
 					mApplication.Log.WriteError($"Failed to package \"{projectClass}:{projectName}\" using \"{definitionName}\"");

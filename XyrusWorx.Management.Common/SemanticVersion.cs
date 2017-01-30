@@ -143,7 +143,7 @@ namespace XyrusWorx.Management
 				return SemanticVersionRange.Any();
 			}
 
-			var min = new SemanticVersion(mMajor, mMinor);
+			var min = new SemanticVersion(mMajor, mMinor, 0, mPreRelease, new string[0]);
 			var max = new SemanticVersion(mMajor + 1, 0);
 
 			return SemanticVersionRange.BetweenIncludingMinimumWithoutMaximum(min, max);

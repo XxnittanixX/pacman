@@ -17,7 +17,7 @@ namespace XyrusWorx.Management.ObjectModel
 		public abstract IResult Test(ILogWriter log = null);
 
 		[NotNull]
-		public abstract Result<PackageModel> CreatePackage(ILogWriter log = null);
+		public abstract Result<PackageModel> CreatePackage(ILogWriter log = null, string preRelease = null);
 	}
 
 	[PublicAPI]
@@ -65,7 +65,7 @@ namespace XyrusWorx.Management.ObjectModel
 
 			return Result.Success;
 		}
-		public sealed override Result<PackageModel> CreatePackage(ILogWriter log = null)
+		public sealed override Result<PackageModel> CreatePackage(ILogWriter log = null, string preRelease = null)
 		{
 			var projectId = GetProjectId();
 			var packageModel = new PackageModel(projectId);
@@ -88,7 +88,7 @@ namespace XyrusWorx.Management.ObjectModel
 			Include(packageModel, new PackageSourceFolder(), GetSourceFiles());
 			Include(packageModel, new PackageContentFolder(), GetAssetFiles());
 
-			var result = CreatePackageOverride(packageModel, log ?? new NullLogWriter());
+			var result = CreatePackageOverride(packageModel, log ?? new NullLogWriter(), preRelease);
 			if (result.HasError)
 			{
 				return Result.CreateError<Result<PackageModel>>(result.ErrorDescription);
@@ -124,7 +124,7 @@ namespace XyrusWorx.Management.ObjectModel
 		protected virtual IResult TestOverride([NotNull] TSourceModel model, [NotNull] ILogWriter log) => Result.Success;
 
 		[NotNull]
-		protected virtual IResult CreatePackageOverride([NotNull] PackageModel package, [NotNull] ILogWriter log) => Result.Success;
+		protected virtual IResult CreatePackageOverride([NotNull] PackageModel package, [NotNull] ILogWriter log, [CanBeNull] string preRelease) => Result.Success;
 
 		[NotNull]
 		protected IEnumerable<string> GetBinaryFiles() => GetBinaryFiles(new StringKey());

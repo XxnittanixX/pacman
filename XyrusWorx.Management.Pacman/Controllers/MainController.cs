@@ -21,6 +21,7 @@ namespace XyrusWorx.Management.Pacman.Controllers
 		}
 
 		public string MinimatchPattern { get; private set; }
+		public string PreRelease { get; private set; }
 		public string TargetDirectory { get; private set; }
 
 		protected override IResult InitializeOverride()
@@ -31,6 +32,7 @@ namespace XyrusWorx.Management.Pacman.Controllers
 
 			CommandLine.RegisterAlias("target", "o");
 			CommandLine.RegisterAlias("verbosity", "v");
+			CommandLine.RegisterAlias("pre-release", "pre");
 
 			Log.Verbosity = CommandLine.Read("verbosity").TryDeserialize<LogVerbosity>();
 
@@ -87,6 +89,8 @@ namespace XyrusWorx.Management.Pacman.Controllers
 				TargetDirectory = null;
 			}
 
+			PreRelease = CommandLine.Read("pre-release");
+
 			return base.InitializeOverride();
 		}
 		protected override IResult Execute(CancellationToken cancellationToken)
@@ -101,7 +105,7 @@ namespace XyrusWorx.Management.Pacman.Controllers
 				var relativePath = file.FullName.Substring(baseDirectory.FullName.Length + 1);
 				if (matcher.IsMatch(relativePath))
 				{
-					mProjects.Export(file.FullName, targetStore);
+					mProjects.Export(file.FullName, targetStore, PreRelease);
 					count++;
 				}
 			}

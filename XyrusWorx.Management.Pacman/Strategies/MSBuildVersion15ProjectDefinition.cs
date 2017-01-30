@@ -16,7 +16,7 @@ namespace XyrusWorx.Management.Pacman.Strategies
 	{
 		public MSBuildVersion15ProjectDefinition([NotNull] string projectFilePath) : base(projectFilePath) {}
 
-		protected override IResult CreatePackageOverride(PackageModel package, ILogWriter log)
+		protected override IResult CreatePackageOverride(PackageModel package, ILogWriter log, string preRelease)
 		{
 			var title = GetProperties("AssemblyTitle").FirstOrDefault();
 			var description = GetProperties("Description").FirstOrDefault();
@@ -44,6 +44,11 @@ namespace XyrusWorx.Management.Pacman.Strategies
 			TrySet(licenseUrlString, s => new Uri(s), u => package.LicenseUrl = u, log);
 			TrySet(versionString, SemanticVersion.Parse, v => package.Version = v, log);
 			TrySet(languageString, CultureInfo.GetCultureInfo, c => package.Culture = c, log);
+
+			if (!package.Version.IsEmpty && !string.IsNullOrWhiteSpace(preRelease))
+			{
+				package.Version = package.Version.DeclarePreRelease(preRelease);
+			}
 
 			var frameworks = GetFrameworks().ToArray();
 			if (frameworks.Length == 0)
@@ -87,10 +92,17 @@ namespace XyrusWorx.Management.Pacman.Strategies
 						continue;
 					}
 
+					var version = package.Version;
+
+					if (!version.IsEmpty && !string.IsNullOrWhiteSpace(preRelease))
+					{
+						version = version.DeclarePreRelease(preRelease);
+					}
+
 					package.Dependencies.Add(new DependencyModel(Path.GetFileNameWithoutExtension(projectReferenceTarget))
 					{
 						TargetFramework = framework.RawData.NormalizeNull(),
-						Version = package.Version.CompatibleRange()
+						Version = version.CompatibleRange()
 					});
 				}
 			}
