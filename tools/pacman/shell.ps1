@@ -78,6 +78,7 @@ function Load-Shell {
 	write-host ""
 	
 	if (-not $success) {
+		$host.ui.RawUI.WindowTitle = "PACMAN - <unknown repository>"
 		exit
 	}
 	
@@ -85,6 +86,17 @@ function Load-Shell {
 		RootDirectory = $RepositoryRoot
 		Configuration = (New-XmlPropertyContainer (Join-Path $RepositoryRoot "config.props")).getObject()
 	}
+	
+	$displayTitle = $global:Repository.Configuration.RepositoryTitle
+	
+	if ([string]::IsNullOrWhiteSpace($displayTitle)) {
+		$displayTitle = $global:Repository.Configuration.PackageBaseName
+	}
+	if ([string]::IsNullOrWhiteSpace($displayTitle)) {
+		$displayTitle = "<unknown repository>"
+	}
+	
+	$host.ui.RawUI.WindowTitle = "PACMAN - $displayTitle"
 } 
 
 set-alias -Name reboot -Value Load-Shell
@@ -93,7 +105,7 @@ set-alias -Name repo -Value Get-Repository
 function prompt
 {
     $pl = (gl).Path
-    $pb = [IO.Path]::GetFullPath("$PSScriptRoot\..")
+    $pb = "$((repo).RootDirectory)".TrimEnd("\")
     
     if ($pl.StartsWith($pb)) {
         $pl = $pl.Substring($pb.Length).TrimStart("\")

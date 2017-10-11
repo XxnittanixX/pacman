@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
+    <RepositoryTitle>PACMAN</RepositoryTitle>
     <PackageBaseName>XyrusWorx.Pacman</PackageBaseName>
   </PropertyGroup>
 </Project>
