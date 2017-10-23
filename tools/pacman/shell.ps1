@@ -1,5 +1,6 @@
 param(
-	[Parameter(Mandatory = $true, Position = 0)] [string] $RepositoryRoot
+	[Parameter(Mandatory = $true, Position = 0)] [string] $RepositoryRoot,
+	[Parameter(Mandatory = $false)] [string] $DefaultRepository
 )
 
 class ModuleContainer {
@@ -62,6 +63,11 @@ function Load-Shell {
 	$global:System = @{
 		Modules = (New-Object ModuleContainer)
 		RootDirectory = $RepositoryRoot
+		DefaultRepository = $DefaultRepository
+	}
+	
+	if ([string]::IsNullOrWhiteSpace($DefaultRepository)) { 
+		$global:System.DefaultRepository = "src"
 	}
 	
 	$global:Repository = $null

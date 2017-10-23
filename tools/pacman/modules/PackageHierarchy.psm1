@@ -111,29 +111,33 @@ class Package : HierarchyLevel {
 }
 
 function Get-PackageRepository {
-
-	$SolutionRoot = Join-Path $global:System.RootDirectory "src"
+	param(
+		[Parameter(Mandatory = $false, Position = 0)] [string] $Id
+	)
 	
-	if (-not (Test-Path $SolutionRoot -PathType Container)) {
-		$VirtualRepositoryDir = [IO.DirectoryInfo] $SolutionRoot
-		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $SolutionRoot "package.props")
-	
-		return [PackageRepository] @{
-			Name = $VirtualRepositoryDir.Name
-			Directory = $VirtualRepositoryDir
-			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($null,@($PackageRepositoryConfiguration))
-		}
+	if ([string]::IsNullOrWhiteSpace($Id)) {
+		$Id = $global:System.DefaultRepository
 	}
 
+	$SolutionRoot = Join-Path $global:System.RootDirectory $Id
+	
+	if ($Id -ne $global:System.DefaultRepository) {
+		$Prefix = "$($Id):"
+		$Suffix = " ($($Id))"
+	}
+	else {
+		$Prefix = ""
+		$Suffix = ""
+	}
+	
 	$PackageRepositoryFolder = [IO.DirectoryInfo] $SolutionRoot
 	$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
-
+	
 	$PackageRepository = [PackageRepository] @{
-		Name = $PackageRepositoryFolder.Parent.Name # <Repository>\src\<Class>\<Package>
+		Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
 		Directory = $PackageRepositoryFolder
 		Configuration = $PackageRepositoryConfiguration
-		EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($null,@($PackageRepositoryConfiguration))
+		EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
 	}
 
 	return $PackageRepository
@@ -144,17 +148,40 @@ function Get-PackageClass {
 		[Parameter(Mandatory = $false, Position = 0)] [string] $Filter = $null
 	)
 
-	$SolutionRoot = Join-Path $global:System.RootDirectory "src"
-
 	if ([string]::IsNullOrWhiteSpace($Filter)) {
 		$Filter = "*"
 	}
+	
+	if ($Filter.Contains(":")) {
+		$Tokens = $Filter.Split(@(":"), 2, [StringSplitOptions]::RemoveEmptyEntries)
+
+		if ($Tokens.Length -eq 1) {
+			$Filter = $Tokens[0]
+			$RepositoryId = $global:System.DefaultRepository
+		} else {
+			$Filter = $Tokens[1]
+			$RepositoryId = $Tokens[0]
+		}
+	} else {
+		$RepositoryId = $global:System.DefaultRepository
+	}
+	
+	$SolutionRoot = Join-Path $global:System.RootDirectory $RepositoryId
 	
 	if (-not (Test-Path $SolutionRoot -PathType Container)) {
 		return
 	}
 
-	$Candidates = @(Get-ChildItem -Path $SolutionRoot -Directory -Filter $Class)
+	$Candidates = @(Get-ChildItem -Path $SolutionRoot -Directory -Filter $Filter)
+	
+	if ($RepositoryId -ne $global:System.DefaultRepository) {
+		$Prefix = "$($RepositoryId):"
+		$Suffix = " ($($RepositoryId))"
+	}
+	else {
+		$Prefix = ""
+		$Suffix = ""
+	}
 
 	foreach($Candidate in $Candidates) {
 
@@ -165,10 +192,10 @@ function Get-PackageClass {
 		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
 		
 		$PackageRepository = [PackageRepository] @{
-			Name = $PackageRepositoryFolder.Parent.Name # <Repository>\src\<Class>\<Package>
+			Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($null,@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -176,7 +203,7 @@ function Get-PackageClass {
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
 			Configuration = $PackageClassConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 
 		Write-Output $PackageClass
@@ -188,14 +215,32 @@ function Get-Package {
 		[Parameter(Mandatory = $false, Position = 0)] [string] $Filter 
 	)
 
-	$SolutionRoot = Join-Path $global:System.RootDirectory "src"
+	if ([string]::IsNullOrWhiteSpace($Filter)) {
+		$Filter = "*"
+	}
+	
+	if ([string]::IsNullOrWhiteSpace($Filter)) {
+		$Filter = "*"
+	}
+	
+	if ($Filter.Contains(":")) {
+		$Tokens = $Filter.Split(@(":"), 2, [StringSplitOptions]::RemoveEmptyEntries)
+
+		if ($Tokens.Length -eq 1) {
+			$Filter = $Tokens[0]
+			$RepositoryId = $global:System.DefaultRepository
+		} else {
+			$Filter = $Tokens[1]
+			$RepositoryId = $Tokens[0]
+		}
+	} else {
+		$RepositoryId = $global:System.DefaultRepository
+	}
+	
+	$SolutionRoot = Join-Path $global:System.RootDirectory $RepositoryId
 	
 	if (-not (Test-Path $SolutionRoot -PathType Container)) {
 		return
-	}
-
-	if ([string]::IsNullOrWhiteSpace($Filter)) {
-		$Filter = "*"
 	}
 
 	if ($Filter.Contains("/")) {
@@ -216,6 +261,15 @@ function Get-Package {
 	$Candidates = @( `
 		Get-ChildItem -Path $SolutionRoot -Directory -Filter $Class | % { `
 		Get-ChildItem -Path $_.FullName -Directory -Filter $Name })
+		
+	if ($RepositoryId -ne $global:System.DefaultRepository) {
+		$Prefix = "$($RepositoryId):"
+		$Suffix = " ($($RepositoryId))"
+	}
+	else {
+		$Prefix = ""
+		$Suffix = ""
+	}
 
 	foreach($Candidate in $Candidates) {
 		
@@ -229,10 +283,10 @@ function Get-Package {
 		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
 		
 		$PackageRepository = [PackageRepository] @{
-			Name = $PackageRepositoryFolder.Parent.Name # <Repository>\src\<Class>\<Package>
+			Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($null,@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -240,7 +294,7 @@ function Get-Package {
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
 			Configuration = $PackageClassConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 		
 		$Package = [Package] @{
@@ -249,7 +303,7 @@ function Get-Package {
 			Repository = $PackageRepository
 			Class = $PackageClass
 			Configuration = $PackageConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$($PackageClassFolder.Name)/$($PackageFolder.Name)",@($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/$($PackageFolder.Name)",@($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 		
 		Write-Output $Package
