@@ -16,7 +16,7 @@ class ModuleContainer {
 			return $false
 		}
 		
-		$fullPath = Join-Path $PSScriptRoot "exec\$Name.psm1"
+		$fullPath = Join-Path $PSScriptRoot "modules\$Name.psm1"
 		Write-Host -NoNewLine "Loading $Name..."
 		
 		try {
@@ -55,7 +55,7 @@ function Load-Shell {
 	$PreviousErrorActionPreference = $ErrorActionPreference
 	write-host ""
 	
-	$classes = gci -recurse -filter "*.psm1" -path "$PSScriptRoot\exec"
+	$classes = gci -recurse -filter "*.psm1" -path "$PSScriptRoot\modules"
 	$success = $true
 	
 	$global:System = @{
