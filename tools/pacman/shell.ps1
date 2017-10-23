@@ -106,7 +106,7 @@ set-alias -Name repo -Value Get-Repository
 function prompt
 {
     $pl = (gl).Path
-    $pb = "$((repo).RootDirectory)".TrimEnd("\")
+    $pb = "$($global:System.RootDirectory)".TrimEnd("\")
     
     if ($pl.StartsWith($pb)) {
         $pl = $pl.Substring($pb.Length).TrimStart("\")
