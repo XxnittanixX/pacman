@@ -56,6 +56,7 @@ function Load-Shell {
 	write-host ""
 	
 	$classes = gci -recurse -filter "*.psm1" -path "$PSScriptRoot\modules"
+	$includes = gci -recurse -filter "*.ps1" -path "$PSScriptRoot\include"
 	$success = $true
 	
 	$global:System = @{
@@ -92,6 +93,11 @@ function Load-Shell {
 	}
 	
 	$host.ui.RawUI.WindowTitle = "PACMAN - $displayTitle"
+	
+	foreach($include in $includes) 
+	{
+		."$include"
+	}
 } 
 
 set-alias -Name reboot -Value Load-Shell
