@@ -1,16 +1,87 @@
-﻿class HierarchyLevel {
-	[ValidateNotNullOrEmpty()] [String]               $Name
-	[ValidateNotNullOrEmpty()] [IO.DirectoryInfo]     $Directory
-	[ValidateNotNullOrEmpty()]                        $Configuration
+﻿class HierarchicalConfigurationContainer {
+
+	hidden [Array] $_Containers
 	
-	[string] getEffectiveProperty([string] $Property) {
-
-		$value = $this.Configuration.getProperty($Property)
-
-		if (-not [string]::IsNullOrEmpty($value)) { return $value }
-
+	HierarchicalConfigurationContainer ([Array] $Containers) {
+		$this._Containers = @($Containers)
+	}
+	
+	[string] getProperty([string] $Property) { 
+		return $this.getProperty($null, $Property)
+	}
+	[string] getProperty([string] $Group, [string] $Property) {
+		
+		foreach($container in $this._Containers) {
+			$value = $container.getProperty($Group, $Property);
+			if (-not [string]::IsNullOrEmpty($value)) {
+				return $value
+			}
+		}
+		
 		return $null
 	}
+
+	[string[]] getGroups() {
+
+		$groupList = New-Object "System.Collections.Generic.HashSet[System.String]"
+
+		foreach($container in $this._Containers) {
+			foreach($group in $container.getGroups()) {
+				$null = $groupList.Add($group)
+			}
+		}
+
+		return $groupList
+	}
+
+	[string[]] getProperties() {
+		return $this.getProperties($null);
+	}
+	[string[]] getProperties($Group) {
+	
+		$propertyList = New-Object "System.Collections.Generic.HashSet[System.String]"
+
+		foreach($container in $this._Containers) {
+			foreach($property in $container.getProperties($Group)) {
+				$null = $propertyList.Add($property)
+			}
+		}
+
+		return $propertyList
+	}
+	
+	[object] getObject() {
+		
+		$obj = $this.getObject($null)
+
+		foreach($group in $this.getGroups()) {
+			Add-Member -InputObject $obj -MemberType NoteProperty -Name $group -Value ($this.getObject($group))
+		}
+
+		return $obj
+	}
+	[object] getObject([string] $Group) {
+	
+		$obj = New-Object PSObject
+
+		foreach($property in $this.getProperties($Group)) {
+			Add-Member -InputObject $obj -MemberType NoteProperty -Name $property -Value ($this.getProperty($Group, $property))
+		}
+
+		return $obj
+	}
+
+	[String] ToString() {
+		return $this._Containers[0].ToString()
+	}
+}
+
+class HierarchyLevel {
+	[ValidateNotNullOrEmpty()] [String]               $Name
+	[ValidateNotNullOrEmpty()] [IO.DirectoryInfo]     $Directory
+	
+	[ValidateNotNullOrEmpty()] $Configuration
+	[ValidateNotNullOrEmpty()] $EffectiveConfiguration                    
 	
 	[string] ToString() {
 		return $this.Name
@@ -22,35 +93,11 @@ class PackageRepository : HierarchyLevel {
 
 class PackageClass : HierarchyLevel {
 	[ValidateNotNullOrEmpty()] [PackageRepository] $Repository
-
-	[string] getEffectiveProperty([string] $Property) {
-
-		$packageClassCfg = $this.Configuration.getProperty($Property)
-		$packageRepositoryCfg = $this.Repository.Configuration.getProperty($Property)
-
-		if (-not [string]::IsNullOrEmpty($packageClassCfg)) { return $packageClassCfg }
-		if (-not [string]::IsNullOrEmpty($packageRepositoryCfg)) { return $packageRepositoryCfg }
-
-		return $null
-	}
 }
 
 class Package : HierarchyLevel {
 	[ValidateNotNullOrEmpty()] [PackageRepository] $Repository
 	[ValidateNotNullOrEmpty()] [PackageClass]      $Class
-
-	[string] getEffectiveProperty([string] $Property) {
-
-		$packageCfg = $this.Configuration.getProperty($Property)
-		$packageClassCfg = $this.Class.Configuration.getProperty($Property)
-		$packageRepositoryCfg = $this.Repository.Configuration.getProperty($Property)
-
-		if (-not [string]::IsNullOrEmpty($packageCfg)) { return $packageCfg }
-		if (-not [string]::IsNullOrEmpty($packageClassCfg)) { return $packageClassCfg }
-		if (-not [string]::IsNullOrEmpty($packageRepositoryCfg)) { return $packageRepositoryCfg }
-
-		return $null
-	}
 }
 
 function Get-PackageRepository {
@@ -62,8 +109,9 @@ function Get-PackageRepository {
 
 	$PackageRepository = [PackageRepository] @{
 		Name = $PackageRepositoryFolder.Parent.Name # <Repository>\src\<Class>\<Package>
-		Configuration = $PackageRepositoryConfiguration
 		Directory = $PackageRepositoryFolder
+		Configuration = $PackageRepositoryConfiguration
+		EffectiveConfiguration = New-Object "HierarchicalConfigurationContainer" -ArgumentList @(,@($PackageRepositoryConfiguration))
 	}
 
 	return $PackageRepository
@@ -92,15 +140,17 @@ function Get-PackageClass {
 		
 		$PackageRepository = [PackageRepository] @{
 			Name = $PackageRepositoryFolder.Parent.Name # <Repository>\src\<Class>\<Package>
-			Configuration = $PackageRepositoryConfiguration
 			Directory = $PackageRepositoryFolder
+			Configuration = $PackageRepositoryConfiguration
+			EffectiveConfiguration = New-Object "HierarchicalConfigurationContainer" -ArgumentList @(,@($PackageRepositoryConfiguration))
 		}
 		
 		$PackageClass = [PackageClass] @{
 			Name = $PackageClassFolder.Name
-			Configuration = $PackageClassConfiguration
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
+			Configuration = $PackageClassConfiguration
+			EffectiveConfiguration = New-Object "HierarchicalConfigurationContainer" -ArgumentList @(,@($PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 
 		Write-Output $PackageClass
@@ -150,23 +200,26 @@ function Get-Package {
 		
 		$PackageRepository = [PackageRepository] @{
 			Name = $PackageRepositoryFolder.Parent.Name # <Repository>\src\<Class>\<Package>
-			Configuration = $PackageRepositoryConfiguration
 			Directory = $PackageRepositoryFolder
+			Configuration = $PackageRepositoryConfiguration
+			EffectiveConfiguration = New-Object "HierarchicalConfigurationContainer" -ArgumentList @(,@($PackageRepositoryConfiguration))
 		}
 		
 		$PackageClass = [PackageClass] @{
 			Name = $PackageClassFolder.Name
-			Configuration = $PackageClassConfiguration
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
+			Configuration = $PackageClassConfiguration
+			EffectiveConfiguration = New-Object "HierarchicalConfigurationContainer" -ArgumentList @(,@($PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 		
 		$Package = [Package] @{
 			Name = $PackageFolder.Name
-			Configuration = $PackageConfiguration
 			Directory = $PackageFolder
 			Repository = $PackageRepository
 			Class = $PackageClass
+			Configuration = $PackageConfiguration
+			EffectiveConfiguration = New-Object "HierarchicalConfigurationContainer" -ArgumentList @(,@($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 		
 		Write-Output $Package
@@ -176,11 +229,28 @@ function Get-Package {
 function Get-PackageProperty {
 	param(
 		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] [HierarchyLevel] $Node,
-		[Parameter(Mandatory = $true, Position = 0)] [string] $Property
+		[Parameter(Mandatory = $true, Position = 0)] [string] $Property,
+		[Parameter(Mandatory = $false)] [string] $Group = $null
 	)
 	
 	process {
-		Write-Output $Node.getEffectiveProperty($Property)
+		Write-Output $Node.EffectiveConfiguration.getProperty($Group, $Property)
+	}
+}
+
+function Get-PackageConfiguration {
+	param(
+		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] [HierarchyLevel] $Node,
+		[Parameter(Mandatory = $false)] [string] $Group = $null
+	)
+	
+	process {
+		if ($Group -eq $null) {
+			Write-Output $Node.EffectiveConfiguration.getObject()
+		} 
+		else {
+			Write-Output $Node.EffectiveConfiguration.getObject($Group)
+		}
 	}
 }
 
@@ -188,11 +258,12 @@ function Set-PackageProperty {
 	param(
 		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] [HierarchyLevel] $Node,
 		[Parameter(Mandatory = $true, Position = 0)] [string] $Property,
-		[Parameter(Mandatory = $false, Position = 1)] [string] $Value
+		[Parameter(Mandatory = $false, Position = 1)] [string] $Value,
+		[Parameter(Mandatory = $false)] [string] $Group = $null
 	)
 	
 	process {
-		$Node.Configuration.setProperty($Property, $Value)
+		$Node.Configuration.setProperty($Group, $Property, $Value)
 	}
 }
 
@@ -201,5 +272,6 @@ Export-ModuleMember -Function @(
 	"Get-PackageClass",
 	"Get-PackageRepository",
 	"Get-PackageProperty",
+	"Get-PackageConfiguration",
 	"Set-PackageProperty"
 )

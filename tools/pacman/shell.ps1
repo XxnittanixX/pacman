@@ -82,7 +82,7 @@ function Load-Shell {
 	
 	$global:Repository = Get-PackageRepository
 	
-	$displayTitle = $global:Repository.getEffectiveProperty("Title")
+	$displayTitle = $global:Repository.EffectiveConfiguration.getProperty("Title")
 	
 	if ([string]::IsNullOrWhiteSpace($displayTitle)) {
 		$displayTitle = $global:Repository.Name
