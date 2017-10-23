@@ -60,12 +60,10 @@ function Load-Shell {
 	
 	$global:System = @{
 		Modules = (New-Object ModuleContainer)
+		RootDirectory = $RepositoryRoot
 	}
 	
-	$global:Repository = @{
-		RootDirectory = $RepositoryRoot
-		Configuration = @{}
-	}
+	$global:Repository = $null
 	
 	foreach($class in $classes) 
 	{
@@ -82,15 +80,12 @@ function Load-Shell {
 		exit
 	}
 	
-	$global:Repository = @{
-		RootDirectory = $RepositoryRoot
-		Configuration = (New-XmlPropertyContainer (Join-Path $RepositoryRoot "config.props")).getObject()
-	}
+	$global:Repository = Get-PackageRepository
 	
-	$displayTitle = $global:Repository.Configuration.RepositoryTitle
+	$displayTitle = $global:Repository.getEffectiveProperty("Title")
 	
 	if ([string]::IsNullOrWhiteSpace($displayTitle)) {
-		$displayTitle = $global:Repository.Configuration.PackageBaseName
+		$displayTitle = $global:Repository.Name
 	}
 	if ([string]::IsNullOrWhiteSpace($displayTitle)) {
 		$displayTitle = "<unknown repository>"

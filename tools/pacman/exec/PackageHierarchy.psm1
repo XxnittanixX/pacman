@@ -1,129 +1,205 @@
 ﻿class HierarchyLevel {
-    [ValidateNotNullOrEmpty()] [String]               $Name
-    [ValidateNotNullOrEmpty()] [IO.DirectoryInfo]     $Directory
-    [ValidateNotNullOrEmpty()]                        $Configuration
+	[ValidateNotNullOrEmpty()] [String]               $Name
+	[ValidateNotNullOrEmpty()] [IO.DirectoryInfo]     $Directory
+	[ValidateNotNullOrEmpty()]                        $Configuration
+	
+	[string] getEffectiveProperty([string] $Property) {
+
+		$value = $this.Configuration.getProperty($Property)
+
+		if (-not [string]::IsNullOrEmpty($value)) { return $value }
+
+		return $null
+	}
+	
+	[string] ToString() {
+		return $this.Name
+	}
 }
 
 class PackageRepository : HierarchyLevel {
-    [string] getEffectiveProperty([string] $Property) {
-
-        $packageRepositoryCfg = $this.Repository.Configuration.getProperty($Property)
-
-        if (-not [string]::IsNullOrEmpty($packageRepositoryCfg)) { return $packageRepositoryCfg }
-
-        return $null
-    }
 }
 
 class PackageClass : HierarchyLevel {
-    [ValidateNotNullOrEmpty()] [PackageRepository] $Repository
+	[ValidateNotNullOrEmpty()] [PackageRepository] $Repository
 
-    [string] getEffectiveProperty([string] $Property) {
+	[string] getEffectiveProperty([string] $Property) {
 
-        $packageClassCfg = $this.Configuration.getProperty($Property)
-        $packageRepositoryCfg = $this.Repository.Configuration.getProperty($Property)
+		$packageClassCfg = $this.Configuration.getProperty($Property)
+		$packageRepositoryCfg = $this.Repository.Configuration.getProperty($Property)
 
-        if (-not [string]::IsNullOrEmpty($packageClassCfg)) { return $packageClassCfg }
-        if (-not [string]::IsNullOrEmpty($packageRepositoryCfg)) { return $packageRepositoryCfg }
+		if (-not [string]::IsNullOrEmpty($packageClassCfg)) { return $packageClassCfg }
+		if (-not [string]::IsNullOrEmpty($packageRepositoryCfg)) { return $packageRepositoryCfg }
 
-        return $null
-    }
+		return $null
+	}
 }
 
 class Package : HierarchyLevel {
-    [ValidateNotNullOrEmpty()] [PackageClass]      $Class
-    [ValidateNotNullOrEmpty()] [PackageRepository] $Repository
+	[ValidateNotNullOrEmpty()] [PackageRepository] $Repository
+	[ValidateNotNullOrEmpty()] [PackageClass]      $Class
 
-    [string] getEffectiveProperty([string] $Property) {
+	[string] getEffectiveProperty([string] $Property) {
 
-        $packageCfg = $this.Configuration.getProperty($Property)
-        $packageClassCfg = $this.Class.Configuration.getProperty($Property)
-        $packageRepositoryCfg = $this.Repository.Configuration.getProperty($Property)
+		$packageCfg = $this.Configuration.getProperty($Property)
+		$packageClassCfg = $this.Class.Configuration.getProperty($Property)
+		$packageRepositoryCfg = $this.Repository.Configuration.getProperty($Property)
 
-        if (-not [string]::IsNullOrEmpty($packageCfg)) { return $packageCfg }
-        if (-not [string]::IsNullOrEmpty($packageClassCfg)) { return $packageClassCfg }
-        if (-not [string]::IsNullOrEmpty($packageRepositoryCfg)) { return $packageRepositoryCfg }
+		if (-not [string]::IsNullOrEmpty($packageCfg)) { return $packageCfg }
+		if (-not [string]::IsNullOrEmpty($packageClassCfg)) { return $packageClassCfg }
+		if (-not [string]::IsNullOrEmpty($packageRepositoryCfg)) { return $packageRepositoryCfg }
 
-        return $null
-    }
+		return $null
+	}
+}
+
+function Get-PackageRepository {
+
+	$SolutionRoot = Join-Path $global:System.RootDirectory "src"
+
+	$PackageRepositoryFolder = [IO.DirectoryInfo] $SolutionRoot
+	$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
+
+	$PackageRepository = [PackageRepository] @{
+		Name = $PackageRepositoryFolder.Parent.Name # <Repository>\src\<Class>\<Package>
+		Configuration = $PackageRepositoryConfiguration
+		Directory = $PackageRepositoryFolder
+	}
+
+	return $PackageRepository
+}
+
+function Get-PackageClass {
+	param(
+		[Parameter(Mandatory = $false, Position = 0)] [string] $Filter = $null
+	)
+
+	$SolutionRoot = Join-Path $global:System.RootDirectory "src"
+
+	if ([string]::IsNullOrWhiteSpace($Filter)) {
+		$Filter = "*"
+	}
+
+	$Candidates = @(Get-ChildItem -Path $SolutionRoot -Directory -Filter $Class)
+
+	foreach($Candidate in $Candidates) {
+
+		$PackageClassFolder = [IO.DirectoryInfo]$Candidate
+		$PackageClassConfiguration = New-XmlPropertyContainer (Join-Path $PackageClassFolder.FullName "package.props")
+		
+		$PackageRepositoryFolder = $PackageClassFolder.Parent
+		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
+		
+		$PackageRepository = [PackageRepository] @{
+			Name = $PackageRepositoryFolder.Parent.Name # <Repository>\src\<Class>\<Package>
+			Configuration = $PackageRepositoryConfiguration
+			Directory = $PackageRepositoryFolder
+		}
+		
+		$PackageClass = [PackageClass] @{
+			Name = $PackageClassFolder.Name
+			Configuration = $PackageClassConfiguration
+			Directory = $PackageClassFolder
+			Repository = $PackageRepository
+		}
+
+		Write-Output $PackageClass
+	}
 }
 
 function Get-Package {
-    param(
-        [Parameter(Mandatory = $false, Position = 0, ValueFromPipeline = $true)] [string] $Id = $null
-    )
+	param(
+		[Parameter(Mandatory = $false, Position = 0)] [string] $Filter 
+	)
 
-    $SolutionRoot = Join-Path $Repository.RootDirectory "src"
+	$SolutionRoot = Join-Path $global:System.RootDirectory "src"
 
-    if ([string]::IsNullOrWhiteSpace($Id)) {
-        $Id = "*"
-    }
+	if ([string]::IsNullOrWhiteSpace($Filter)) {
+		$Filter = "*"
+	}
 
-    if ($Id.Contains("/")) {
-        $Tokens = $Id.Split(@("/"), 2, [StringSplitOptions]::RemoveEmptyEntries)
+	if ($Filter.Contains("/")) {
+		$Tokens = $Filter.Split(@("/"), 2, [StringSplitOptions]::RemoveEmptyEntries)
 
-        if ($Tokens.Length -eq 1) {
-            $Name = $Tokens[0]
-            $Class = "*"
-        } else {
-            $Name = $Tokens[1]
-            $Class = $Tokens[0]
-        }
-    } else {
-        $Name = $Id
-        $Class = "*"
-    }
+		if ($Tokens.Length -eq 1) {
+			$Name = $Tokens[0]
+			$Class = "*"
+		} else {
+			$Name = $Tokens[1]
+			$Class = $Tokens[0]
+		}
+	} else {
+		$Name = $Filter
+		$Class = "*"
+	}
 
-    $Candidates = @( `
-        Get-ChildItem -Path $SolutionRoot -Directory -Filter $Class | % { `
-        Get-ChildItem -Path $_.FullName -Directory -Filter $Name })
+	$Candidates = @( `
+		Get-ChildItem -Path $SolutionRoot -Directory -Filter $Class | % { `
+		Get-ChildItem -Path $_.FullName -Directory -Filter $Name })
 
-    if ($Candidates.Length -gt 1) {
-        Write-Error "Multiple projects found in $Class/$Name"
-        Return
-    }
-    elseif ($Candidates.Length -eq 0) {
-        Write-Error "Could not find package for identifier ""$Class/$Name"""
-        Return
-    }
+	foreach($Candidate in $Candidates) {
+		
+		$PackageFolder = [IO.DirectoryInfo]$Candidate
+		$PackageConfiguration = New-XmlPropertyContainer (Join-Path $PackageFolder.FullName "package.props")
+		
+		$PackageClassFolder = $PackageFolder.Parent
+		$PackageClassConfiguration = New-XmlPropertyContainer (Join-Path $PackageClassFolder.FullName "package.props")
+		
+		$PackageRepositoryFolder = $PackageClassFolder.Parent
+		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
+		
+		$PackageRepository = [PackageRepository] @{
+			Name = $PackageRepositoryFolder.Parent.Name # <Repository>\src\<Class>\<Package>
+			Configuration = $PackageRepositoryConfiguration
+			Directory = $PackageRepositoryFolder
+		}
+		
+		$PackageClass = [PackageClass] @{
+			Name = $PackageClassFolder.Name
+			Configuration = $PackageClassConfiguration
+			Directory = $PackageClassFolder
+			Repository = $PackageRepository
+		}
+		
+		$Package = [Package] @{
+			Name = $PackageFolder.Name
+			Configuration = $PackageConfiguration
+			Directory = $PackageFolder
+			Repository = $PackageRepository
+			Class = $PackageClass
+		}
+		
+		Write-Output $Package
+	}
+}
 
-    $PackageFolder = [IO.DirectoryInfo]$Candidates[0]
-    $PackageConfiguration = New-XmlPropertyContainer (Join-Path $PackageFolder.FullName "package.props")
+function Get-PackageProperty {
+	param(
+		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] [HierarchyLevel] $Node,
+		[Parameter(Mandatory = $true, Position = 0)] [string] $Property
+	)
+	
+	process {
+		Write-Output $Node.getEffectiveProperty($Property)
+	}
+}
 
-    $PackageClassFolder = $PackageFolder.Parent
-    $PackageClassConfiguration = New-XmlPropertyContainer (Join-Path $PackageClassFolder.FullName "package.props")
-
-    $PackageRepositoryFolder = $PackageClassFolder.Parent
-    $PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
-
-    $Package = New-Object PSObject
-    $PackageClass = New-Object PSObject
-    $PackageRepository = New-Object PSObject
-
-    $PackageRepository = [PackageRepository] @{
-        Name = $PackageRepositoryFolder.Parent.Name # <Repository>\src\<Class>\<Package>
-        Configuration = $PackageRepositoryConfiguration
-        Directory = $PackageRepositoryFolder
-    }
-
-    $PackageClass = [PackageClass] @{
-        Name = $PackageClassFolder.Name
-        Configuration = $PackageClassConfiguration
-        Directory = $PackageClassFolder
-        Repository = $PackageRepository
-    }
-
-    $Package = [Package] @{
-        Name = $PackageFolder.Name
-        Configuration = $PackageConfiguration
-        Directory = $PackageFolder
-        Repository = $PackageRepository
-        Class = $PackageClass
-    }
-
-    return $Package
+function Set-PackageProperty {
+	param(
+		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] [HierarchyLevel] $Node,
+		[Parameter(Mandatory = $true, Position = 0)] [string] $Property,
+		[Parameter(Mandatory = $false, Position = 1)] [string] $Value
+	)
+	
+	process {
+		$Node.Configuration.setProperty($Property, $Value)
+	}
 }
 
 Export-ModuleMember -Function @(
-    "Get-Package"
+	"Get-Package",
+	"Get-PackageClass",
+	"Get-PackageRepository",
+	"Get-PackageProperty",
+	"Set-PackageProperty"
 )

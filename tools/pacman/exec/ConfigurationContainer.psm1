@@ -156,6 +156,10 @@
         return $obj
     }
 
+    [String] ToString() {
+        return $this._Path
+    }
+
     hidden [System.Xml.XmlDocument] loadPropertyContainer() {
         if (-not (Test-Path $this._Path -PathType Leaf)) {
             $xml = [xml]"<?xml version=""1.0"" encoding=""utf-8""?>`r`n<Project xmlns=""http://schemas.microsoft.com/developer/msbuild/2003"">`r`n</Project>"
