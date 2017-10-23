@@ -267,4 +267,6 @@ function New-XmlPropertyContainer {
 	return New-Object XmlPropertyContainer -ArgumentList @($Path) 
 }
 
-Export-ModuleMember "New-XmlPropertyContainer"
+Export-ModuleMember -Function @(
+    "New-XmlPropertyContainer"
+)
