@@ -1,9 +1,13 @@
-﻿class HierarchicalConfigurationContainer {
+﻿class EffectiveConfigurationContainer {
 
+	hidden $_Metadata
 	hidden [Array] $_Containers
 	
-	HierarchicalConfigurationContainer ([Array] $Containers) {
+	EffectiveConfigurationContainer ([String] $OwnerId, [Array] $Containers) {
 		$this._Containers = @($Containers)
+		$this._Metadata = @{
+			Package = $OwnerId
+		}
 	}
 	
 	[string] getProperty([string] $Property) { 
@@ -40,7 +44,7 @@
 	[string[]] getProperties($Group) {
 	
 		$propertyList = New-Object "System.Collections.Generic.HashSet[System.String]"
-
+		
 		foreach($container in $this._Containers) {
 			foreach($property in $container.getProperties($Group)) {
 				$null = $propertyList.Add($property)
@@ -63,6 +67,12 @@
 	[object] getObject([string] $Group) {
 	
 		$obj = New-Object PSObject
+		
+		if ([string]::IsNullOrEmpty($Group)) {
+			foreach($key in $this._Metadata.Keys) {
+				Add-Member -InputObject $obj -MemberType NoteProperty -Name $key -Value ($this._Metadata[$key])
+			}
+		}
 
 		foreach($property in $this.getProperties($Group)) {
 			Add-Member -InputObject $obj -MemberType NoteProperty -Name $property -Value ($this.getProperty($Group, $property))
@@ -111,7 +121,7 @@ function Get-PackageRepository {
 		Name = $PackageRepositoryFolder.Parent.Name # <Repository>\src\<Class>\<Package>
 		Directory = $PackageRepositoryFolder
 		Configuration = $PackageRepositoryConfiguration
-		EffectiveConfiguration = New-Object "HierarchicalConfigurationContainer" -ArgumentList @(,@($PackageRepositoryConfiguration))
+		EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($null,@($PackageRepositoryConfiguration))
 	}
 
 	return $PackageRepository
@@ -142,7 +152,7 @@ function Get-PackageClass {
 			Name = $PackageRepositoryFolder.Parent.Name # <Repository>\src\<Class>\<Package>
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "HierarchicalConfigurationContainer" -ArgumentList @(,@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($null,@($PackageRepositoryConfiguration))
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -150,7 +160,7 @@ function Get-PackageClass {
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
 			Configuration = $PackageClassConfiguration
-			EffectiveConfiguration = New-Object "HierarchicalConfigurationContainer" -ArgumentList @(,@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 
 		Write-Output $PackageClass
@@ -202,7 +212,7 @@ function Get-Package {
 			Name = $PackageRepositoryFolder.Parent.Name # <Repository>\src\<Class>\<Package>
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "HierarchicalConfigurationContainer" -ArgumentList @(,@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($null,@($PackageRepositoryConfiguration))
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -210,7 +220,7 @@ function Get-Package {
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
 			Configuration = $PackageClassConfiguration
-			EffectiveConfiguration = New-Object "HierarchicalConfigurationContainer" -ArgumentList @(,@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 		
 		$Package = [Package] @{
@@ -219,7 +229,7 @@ function Get-Package {
 			Repository = $PackageRepository
 			Class = $PackageClass
 			Configuration = $PackageConfiguration
-			EffectiveConfiguration = New-Object "HierarchicalConfigurationContainer" -ArgumentList @(,@($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$($PackageClassFolder.Name)/$($PackageFolder.Name)",@($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 		
 		Write-Output $Package
