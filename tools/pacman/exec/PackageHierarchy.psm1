@@ -113,6 +113,18 @@ class Package : HierarchyLevel {
 function Get-PackageRepository {
 
 	$SolutionRoot = Join-Path $global:System.RootDirectory "src"
+	
+	if (-not (Test-Path $SolutionRoot -PathType Container)) {
+		$VirtualRepositoryDir = [IO.DirectoryInfo] $SolutionRoot
+		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $SolutionRoot "package.props")
+	
+		return [PackageRepository] @{
+			Name = $VirtualRepositoryDir.Name
+			Directory = $VirtualRepositoryDir
+			Configuration = $PackageRepositoryConfiguration
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($null,@($PackageRepositoryConfiguration))
+		}
+	}
 
 	$PackageRepositoryFolder = [IO.DirectoryInfo] $SolutionRoot
 	$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
@@ -136,6 +148,10 @@ function Get-PackageClass {
 
 	if ([string]::IsNullOrWhiteSpace($Filter)) {
 		$Filter = "*"
+	}
+	
+	if (-not (Test-Path $SolutionRoot -PathType Container)) {
+		return
 	}
 
 	$Candidates = @(Get-ChildItem -Path $SolutionRoot -Directory -Filter $Class)
@@ -173,6 +189,10 @@ function Get-Package {
 	)
 
 	$SolutionRoot = Join-Path $global:System.RootDirectory "src"
+	
+	if (-not (Test-Path $SolutionRoot -PathType Container)) {
+		return
+	}
 
 	if ([string]::IsNullOrWhiteSpace($Filter)) {
 		$Filter = "*"
