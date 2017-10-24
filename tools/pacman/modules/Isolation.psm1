@@ -1,24 +1,29 @@
 function New-Shell {
-    [CmdLetBinding()]
     param(
-        [Parameter(Mandatory = $false)] [switch] $NoRuntime
+        [switch] $NoRuntime
     )
 
     $Runspace = [RunspaceFactory]::CreateRunspace()
     $Runspace.Open()
     
-    [PowerShell] $isolatedShell = [PowerShell]::Create()
-    try {
-        
-        $isolatedShell.Runspace = $isolatedRunspace
+    if (-not $NoRuntime) {
+        [PowerShell] $isolatedShell = [PowerShell]::Create()
+        try {
+    
+            $isolatedShell.Runspace = $Runspace
+            $null = $isolatedShell.AddScript("$PSScriptRoot\..\shell.ps1 $(Get-ShellParameters) -Headless") 
+            $null = $isolatedShell.Invoke()
+            
+        }
+        finally {
+            $isolatedShell.Dispose()
+        }
+    }
 
-        $null = $isolatedShell.AddScript("$PSScriptRoot\..\shell.ps1 $(Get-ShellParameters)")
-        $null = $isolatedShell.Invoke()
-        
-    }
-    finally {
-        $isolatedShell.Dispose()
-    }
+    $Runspace.SessionStateProxy.SetVariable("VerbosePreference", "Continue")
+    $Runspace.SessionStateProxy.SetVariable("InformationPreference", "Continue")
+    $Runspace.SessionStateProxy.SetVariable("WarningPreference", "Continue")
+    $Runspace.SessionStateProxy.SetVariable("ErrorActionPreference", "Stop")
 
     return $Runspace
 }
@@ -42,8 +47,14 @@ function Invoke-Isolated {
         [PowerShell] $processor = [PowerShell]::Create()
         try {
             $processor.Runspace = $Shell
-            $null = $processor.AddCommand("Foreach-Object").AddParameter("Process", [Scriptblock]::Create($Command))
-            return @($processor.Invoke(@($Context)))
+            $null = $processor.AddCommand("Foreach-Object").AddParameter("Process", [Scriptblock]::Create($Command)).AddParameter("Verbose").AddParameter("InformationAction", "Continue")` 
+            $Result = @($processor.Invoke(@($Context)))
+            
+            $processor.Streams.Warning.ReadAll() | ForEach-Object { Write-Warning $_.Message }
+            $processor.Streams.Information.ReadAll() | ForEach-Object { Write-Information -MessageData $_.MessageData }
+            $processor.Streams.Verbose.ReadAll() | ForEach-Object { Write-Verbose $_.Message }
+
+            return $result
         }
         finally {
             $processor.Dispose()

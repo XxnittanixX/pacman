@@ -30,90 +30,97 @@ function Invoke-Build {
         }
 
         $refs = $Package.getPackages()
+        $scriptShell = New-Shell
 
-        foreach($ref in $refs) {
-            $build = $ref.EffectiveConfiguration.getObject().Build
-
-            if ($build -eq $null) {
-                continue
-            }
-
-            if ($build.BeforeBuild -ne $null) {
-                $build.BeforeBuild | Invoke-Expression
-            }
-
-            $projectFilters = "$($build.Projects)".Split(@(";"), [StringSplitOptions]::RemoveEmptyEntries)
-            $effectiveTarget = $build.Target
-
-            if (-not [string]::IsNullOrWhiteSpace($Target)) {
-                $effectiveTarget = $Target
-            }
-
-            if ([string]::IsNullOrWhiteSpace($effectiveTarget)) {
-                $effectiveTarget = "Build"
-            }
-
-            $visited = New-Object "System.Collections.Generic.HashSet[System.String]"
-
-            foreach($projectFilter in $projectFilters) {
-            
-                $searchPath = Split-Path $projectFilter
-
-                if (-not [IO.Path]::IsPathRooted($searchPath)) {
-                    $searchPath = Join-Path ($ref.Directory.FullName) $searchPath
+        try {
+            foreach($ref in $refs) {
+                $build = $ref.EffectiveConfiguration.getObject().Build
+    
+                if ($build -eq $null) {
+                    continue
                 }
-
-                $fileFilter = Split-Path -Leaf $projectFilter
-                $projectFiles = @($projectFilters|%{gci -path $searchPath -Filter $fileFilter -File})
-
-                foreach($projectFile in $projectFiles) {
+    
+                if ($build.BeforeBuild -ne $null) {
+                    Invoke-Isolated -Context $ref -Command $build.BeforeBuild -Shell $scriptShell -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
+                }
+    
+                $projectFilters = "$($build.Projects)".Split(@(";"), [StringSplitOptions]::RemoveEmptyEntries)
+                $effectiveTarget = $build.Target
+    
+                if (-not [string]::IsNullOrWhiteSpace($Target)) {
+                    $effectiveTarget = $Target
+                }
+    
+                if ([string]::IsNullOrWhiteSpace($effectiveTarget)) {
+                    $effectiveTarget = "Build"
+                }
+    
+                $visited = New-Object "System.Collections.Generic.HashSet[System.String]"
+    
+                foreach($projectFilter in $projectFilters) {
                 
-                    if (-not $visited.Add($projectFile.FullName)) {
-                        continue
+                    $searchPath = Split-Path $projectFilter
+    
+                    if (-not [IO.Path]::IsPathRooted($searchPath)) {
+                        $searchPath = Join-Path ($ref.Directory.FullName) $searchPath
                     }
-
-                    Write-Information "Building project: $($projectFile.FullName)"
-
-                    $msbuildCommand = "&""$(join-path $buildTools "msbuild.exe")"" /v:minimal /nologo /consoleloggerparameters:""NoSummary;ForceNoAlign"" /t:""$effectiveTarget"" "
-
-                    $ref.EffectiveConfiguration.getProperties("BuildProperties") | Foreach-Object {
-                        $msbuildCommand = "$msbuildCommand/p:$_=""$($ref.EffectiveConfiguration.getProperty("BuildProperties", $_))"" "
-                    }
-
-                    $msbuildCommand = "$msbuildCommand""$($projectFile.FullName)"""
-
-                    if ($pscmdlet.ShouldProcess("$($ref.Class)/$ref", "MSBuild:$effectiveTarget")) {
-
-                        $errorCount = 0
-                        $msbuildCommand | Invoke-Expression | Foreach-Object {
-        
-                            $elm = $elr.Match($_)
-                            $wlm = $wlr.Match($_)
-
-                            if ($elm.Success) {
-                                $errorCount ++
-                                Write-Error -Message $elm.Groups[1].Value -Category FromStdErr
-                            }
-                            elseif ($wlm.Success) {
-                                Write-Warning -Message $wlm.Groups[1].Value
-                            }
-                            else {
-                                Write-Verbose $_.TrimStart()
-                            }
+    
+                    $fileFilter = Split-Path -Leaf $projectFilter
+                    $projectFiles = @($projectFilters|%{gci -path $searchPath -Filter $fileFilter -File})
+    
+                    foreach($projectFile in $projectFiles) {
+                    
+                        if (-not $visited.Add($projectFile.FullName)) {
+                            continue
                         }
-
-                        if (($errorCount -le 0) -and ($LASTEXITCODE -ne 0)) {
-                            Write-Error "Failed to build project: $($projectFile.FullName)"
-                            Return
+    
+                        Write-Information "Building project: $($projectFile.FullName)"
+    
+                        $msbuildCommand = "&""$(join-path $buildTools "msbuild.exe")"" /v:minimal /nologo /consoleloggerparameters:""NoSummary;ForceNoAlign"" /t:""$effectiveTarget"" "
+    
+                        $ref.EffectiveConfiguration.getProperties("BuildProperties") | Foreach-Object {
+                            $msbuildCommand = "$msbuildCommand/p:$_=""$($ref.EffectiveConfiguration.getProperty("BuildProperties", $_))"" "
+                        }
+    
+                        $msbuildCommand = "$msbuildCommand""$($projectFile.FullName)"""
+    
+                        if ($pscmdlet.ShouldProcess("$($ref.Class)/$ref", "MSBuild:$effectiveTarget")) {
+    
+                            $errorCount = 0
+                            $msbuildCommand | Invoke-Expression | Foreach-Object {
+            
+                                $elm = $elr.Match($_)
+                                $wlm = $wlr.Match($_)
+    
+                                if ($elm.Success) {
+                                    $errorCount ++
+                                    Write-Error -Message $elm.Groups[1].Value -Category FromStdErr
+                                }
+                                elseif ($wlm.Success) {
+                                    Write-Warning -Message $wlm.Groups[1].Value
+                                }
+                                else {
+                                    Write-Verbose $_.TrimStart()
+                                }
+                            }
+    
+                            if (($errorCount -le 0) -and ($LASTEXITCODE -ne 0)) {
+                                Write-Error "Failed to build project: $($projectFile.FullName)"
+                                Return
+                            }
                         }
                     }
                 }
-            }
-        
-            if ($build.AfterBuild -ne $null) {
-                $build.AfterBuild | Invoke-Expression
+            
+                if ($build.AfterBuild -ne $null) {
+                    Invoke-Isolated -Context $ref -Shell $scriptShell -Command $build.AfterBuild -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
+                }
             }
         }
+        finally {
+            $scriptShell.Close()
+        }
+        
     }
 }
 

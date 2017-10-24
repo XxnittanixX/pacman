@@ -1,4 +1,5 @@
 function Expand-TemplatePackage {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true, ValueFromPipeline = $true)] [string] $TemplateFile,
         [Parameter(Mandatory = $true, Position = 0)] [string] $Destination,
@@ -22,7 +23,7 @@ function Expand-TemplatePackage {
         
         [IO.File]::WriteAllText(
             (Join-Path $item.DirectoryName $item.BaseName), 
-            (Get-Content -Raw -Path $item.FullName | Expand-Template -Context $Context))
+            (Get-Content -Raw -Path $item.FullName | Expand-Template -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")))
 
         Remove-Item -Path $item.FullName -Force
     }
@@ -43,6 +44,7 @@ function Expand-TemplatePackage {
 }
 
 function Expand-Template {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true, ValueFromPipeline = $true)] [string] $Template,
         [Parameter(Mandatory = $false)] $Context
@@ -59,7 +61,7 @@ function Expand-Template {
         while ($inputString -match "(?s)(?<pre>.*?)$beginTag(?<exp>.*?)$endTag(?<post>.*)") {
             $inputString = $matches.post
             $null = $outputStringBuilder.Append($matches.pre)
-            $null = $outputStringBuilder.Append((Invoke-Isolated -Shell $shell -Command $matches.exp -Context $Context | Out-String).TrimEnd())
+            $null = $outputStringBuilder.Append((Invoke-Isolated -Shell $shell -Command $matches.exp -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue") | Out-String).TrimEnd())
         }
         
         $null = $outputStringBuilder.Append($inputString)
