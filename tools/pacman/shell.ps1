@@ -73,7 +73,6 @@ function Set-Environment {
 	return $TargetEnvironment
 }
 
-function Get-Repository { return $global:Repository }
 function Load-Shell { 
 	$PreviousErrorActionPreference = $ErrorActionPreference
 	write-host ""
@@ -131,7 +130,6 @@ function Load-Shell {
 } 
 
 set-alias -Name reboot -Value Load-Shell
-set-alias -Name repo -Value Get-Repository
 set-alias -Name env -Value Set-Environment
 
 function prompt

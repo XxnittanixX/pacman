@@ -366,6 +366,12 @@ function Set-PackageProperty {
 	}
 }
 
+Set-Alias "pkg" "Get-Package"
+Set-Alias "pcls" "Get-PackageClass"
+Set-Alias "repo" "Get-PackageRepository"
+Set-Alias "prop" "Get-PackageProperty"
+Set-Alias "props" "Get-PackageConfiguration"
+
 Export-ModuleMember -Function @(
 	"Get-Package",
 	"Get-PackageClass",
@@ -373,4 +379,10 @@ Export-ModuleMember -Function @(
 	"Get-PackageProperty",
 	"Get-PackageConfiguration",
 	"Set-PackageProperty"
+) -Alias @(
+	"pkg",
+	"pcls",
+	"repo",
+	"prop",
+	"props"
 )
