@@ -4,6 +4,13 @@ param(
 	[Parameter(Mandatory = $false)] [string] $Environment
 )
 
+function Get-ShellParameters {
+	return `
+		"-RepositoryRoot ""$RepositoryRoot""" + `
+		"-DefaultRepository ""$DefaultRepository""" + `
+		"-Environment ""$Environment"""
+}
+
 class ModuleContainer {
 
 	hidden [System.Collections.Generic.HashSet[System.String]] $_Modules
@@ -49,9 +56,6 @@ class ModuleContainer {
 	}
 }
 
-$global:System = @{}
-$global:Repository = @{}
-
 function Set-Environment {
 	param([Parameter(ValueFromPipeline = $true, Position = 0)] [string] $TargetEnvironment)
 
@@ -73,12 +77,17 @@ function Set-Environment {
 	return $TargetEnvironment
 }
 
-function Load-Shell { 
+function Initialize-Shell { 
+	Remove-Variable * -ErrorAction SilentlyContinue
+	Remove-Module *
+
+	$error.Clear()
+
 	$PreviousErrorActionPreference = $ErrorActionPreference
 	write-host ""
 	
-	$classes = gci -filter "*.psm1" -path "$PSScriptRoot\modules"
-	$includes = gci -filter "*.ps1" -path "$PSScriptRoot\include"
+	$classes = Get-ChildItem -filter "*.psm1" -path "$PSScriptRoot\modules"
+	$includes = Get-ChildItem -filter "*.ps1" -path "$PSScriptRoot\include"
 	$success = $true
 	
 	$global:System = @{
@@ -129,12 +138,8 @@ function Load-Shell {
 	Set-Environment -TargetEnvironment $Environment | Out-Null
 } 
 
-set-alias -Name reboot -Value Load-Shell
-set-alias -Name env -Value Set-Environment
-
-function prompt
-{
-    $pl = (gl).Path
+function prompt {
+    $pl = (Get-Location).Path
     $pb = "$($global:System.RootDirectory)".TrimEnd("\")
     
     if ($pl.StartsWith($pb)) {
@@ -170,4 +175,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 "@
 
-Load-Shell
+Set-Alias -Name reboot -Value Initialize-Shell
+Set-Alias -Name env -Value Set-Environment
+Initialize-Shell
