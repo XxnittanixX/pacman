@@ -51,47 +51,22 @@ function Expand-Template {
     $beginTag = [regex]::Escape("[[")
     $endTag = [regex]::Escape("]]")
 
-    $isolatedRunspace = [RunspaceFactory]::CreateRunspace()
-    $isolatedRunspace.Open()
-
+    $shell = New-Shell
     $inputString = $Template
-    $outputStringBuilder = New-Object System.Text.StringBuilder
+    $outputStringBuilder = New-Object "System.Text.StringBuilder"
 
     try {
-
-        try {
-            [PowerShell] $isolatedShell = [PowerShell]::Create()
-            $isolatedShell.Runspace = $isolatedRunspace
-            
-            $null = $isolatedShell.AddScript("$PSScriptRoot\..\shell.ps1 $(Get-ShellParameters)")
-            $null = $isolatedShell.Invoke()
-        }
-        finally {
-            $isolatedShell.Dispose()
-        }
-
         while ($inputString -match "(?s)(?<pre>.*?)$beginTag(?<exp>.*?)$endTag(?<post>.*)") {
             $inputString = $matches.post
             $null = $outputStringBuilder.Append($matches.pre)
-
-            try {
-                [PowerShell] $isolatedShell = [PowerShell]::Create()
-                $isolatedShell.Runspace = $isolatedRunspace
-                $null = $isolatedShell.AddCommand("Foreach-Object").AddParameter("Process", [Scriptblock]::Create($matches.exp))
-                $scriptResult = $isolatedShell.Invoke(@($Context))
-                $compositeScriptResult = @($scriptResult | ForEach-Object { "$_" }) -join [Environment]::NewLine
-                $null = $outputStringBuilder.Append($compositeScriptResult)
-            }
-            finally {
-                $isolatedShell.Dispose()
-            }
+            $null = $outputStringBuilder.Append((Invoke-Isolated -Shell $shell -Command $matches.exp -Context $Context | Out-String).TrimEnd())
         }
         
         $null = $outputStringBuilder.Append($inputString)
         return $outputStringBuilder.ToString()
     }
     finally {
-        $isolatedRunspace.Close()
+        $shell.Close()
     }
 }
 
