@@ -496,6 +496,10 @@ function Initialize-Package {
 		$null = $Package.Directory.Create()
 	}
 
+	if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:CreatePackageConfiguration")) {
+		$null = New-XmlPropertyContainer -Force (Join-Path $Package.Directory.FullName "package.props")
+	}
+
 	if ($foundTemplateFile -ne $null) {
 		if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:ExpandTemplate(""$foundTemplateFile"")")) {
 			Expand-TemplatePackage -TemplateFile $foundTemplateFile -Destination $Package.Directory.FullName

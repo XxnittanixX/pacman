@@ -267,7 +267,17 @@
 }
 
 function New-XmlPropertyContainer { 
-	param([Parameter(Mandatory = $true, Position = 0)] [string] $Path)
+    param([Parameter(Mandatory = $true, Position = 0)] [string] $Path, [switch] $Force)
+    
+    if ($Force -and -not (Test-Path $Path -PathType Leaf)){
+        [IO.File]::WriteAllText($Path, 
+            "<?xml version=""1.0"" encoding=""utf-8""?>`r`n<Project xmlns=""http://schemas.microsoft.com/developer/msbuild/2003"">`r`n" + 
+            "`t<PropertyGroup>`r`n" +
+            "`t`t<!-- <Name>Value</Name> -->`r`n" + 
+            "`t</PropertyGroup>`r`n" +
+            "</Project>")
+    }
+
 	return New-Object XmlPropertyContainer -ArgumentList @($Path) 
 }
 
