@@ -158,6 +158,11 @@ function Get-PackageRepository {
 	return $PackageRepository
 }
 
+function Test-Validity { 
+	param([string] $Id, [char[]] $IllegalChars = [IO.Path]::GetInvalidFileNameChars()) 
+	return("$Id".ToCharArray()|?{(New-Object string @(,$IllegalChars)).Contains("$_")}).Count -eq 0
+}
+
 function Get-PackageClass {
 	param(
 		[Parameter(Mandatory = $false, Position = 0)] [string] $Filter = $null
@@ -196,6 +201,36 @@ function Get-PackageClass {
 	else {
 		$Prefix = ""
 		$Suffix = ""
+	}
+
+	if ($Candidates.Length -eq 0) {
+		if (-not (Test-Validity -Id $Filter -IllegalChars @("*", "?"))) {
+			echo $Filter
+			return
+		}
+
+		$PackageClassFolder = [IO.DirectoryInfo] (Join-Path $SolutionRoot $Filter)
+		$PackageClassConfiguration = New-XmlPropertyContainer (Join-Path $PackageClassFolder.FullName "package.props")
+		
+		$PackageRepositoryFolder = [IO.DirectoryInfo] $SolutionRoot
+		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
+		
+		$PackageRepository = [PackageRepository] @{
+			Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
+			Directory = $PackageRepositoryFolder
+			Configuration = $PackageRepositoryConfiguration
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
+		}
+		
+		$PackageClass = [PackageClass] @{
+			Name = $PackageClassFolder.Name
+			Directory = $PackageClassFolder
+			Repository = $PackageRepository
+			Configuration = $PackageClassConfiguration
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+		}
+
+		return @($PackageClass)
 	}
 
 	foreach($Candidate in $Candidates) {
@@ -286,6 +321,48 @@ function Get-Package {
 		$Suffix = ""
 	}
 
+	if ($Candidates.Length -eq 0) {
+		if (-not (Test-Validity -Id "$Class\$Name" -IllegalChars @("*", "?"))) {
+			echo $Filter
+			return
+		}
+
+		$PackageFolder = [IO.DirectoryInfo] (Join-Path $SolutionRoot "$Class\$Name")
+		$PackageConfiguration = New-XmlPropertyContainer (Join-Path $PackageFolder.FullName "package.props")
+
+		$PackageClassFolder = [IO.DirectoryInfo] (Join-Path $SolutionRoot "$Class")
+		$PackageClassConfiguration = New-XmlPropertyContainer (Join-Path $PackageClassFolder.FullName "package.props")
+		
+		$PackageRepositoryFolder = [IO.DirectoryInfo] $SolutionRoot
+		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
+		
+		$PackageRepository = [PackageRepository] @{
+			Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
+			Directory = $PackageRepositoryFolder
+			Configuration = $PackageRepositoryConfiguration
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
+		}
+		
+		$PackageClass = [PackageClass] @{
+			Name = $PackageClassFolder.Name
+			Directory = $PackageClassFolder
+			Repository = $PackageRepository
+			Configuration = $PackageClassConfiguration
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+		}
+
+		$Package = [Package] @{
+			Name = $PackageFolder.Name
+			Directory = $PackageFolder
+			Repository = $PackageRepository
+			Class = $PackageClass
+			Configuration = $PackageConfiguration
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/$($PackageFolder.Name)",@($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration))
+		}
+
+		return @($Package)
+	}
+
 	foreach($Candidate in $Candidates) {
 		
 		$PackageFolder = [IO.DirectoryInfo]$Candidate
@@ -366,11 +443,72 @@ function Set-PackageProperty {
 	}
 }
 
+function Initialize-Package {
+	[CmdLetBinding(SupportsShouldProcess=$true)]
+	param(
+		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] [Package] $Package,
+		[Parameter(Position = 0, Mandatory = $false)] [string] $Template
+	)
+
+	$defaultTemplate = $Package.Class.EffectiveConfiguration.getProperty("DefaultTemplate")
+
+	if ([string]::IsNullOrWhiteSpace($Template)) {
+		$Template = $defaultTemplate
+	}
+
+	$templateSearchPaths = @(
+		"templates",
+		"tools\pacman\templates"
+	)
+	$templateExtensions = @(
+		"template",
+		"zip"
+	)
+
+	$foundTemplateFile = $null
+
+	if(-not [string]::IsNullOrWhiteSpace($Template)){
+		foreach($templateSearchPath in $templateSearchPaths) {
+			foreach($templateExtension in $templateExtensions) { 
+				
+				$templateFile = Join-Path $global:System.RootDirectory "$templateSearchPath\$Template.$templateExtension"
+
+				if (-not (Test-Path $templateFile -PathType Leaf)) {
+					continue
+				}
+
+				$foundTemplateFile = $templateFile
+				break
+			}
+			
+			if ($foundTemplateFile -ne $null) {
+				break
+			}
+		}
+
+		if ($foundTemplateFile -eq $null) {
+			Write-Error "Unable to find template ""$Template""."
+			return
+		}
+	}
+
+	if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:CreateDirectory")) {
+		$null = $Package.Directory.Create()
+	}
+
+	if ($foundTemplateFile -ne $null) {
+		if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:ExpandTemplate(""$foundTemplateFile"")")) {
+			Expand-TemplatePackage -TemplateFile $foundTemplateFile -Destination $Package.Directory.FullName
+		}
+	}
+}
+
 Set-Alias "pkg" "Get-Package"
 Set-Alias "pcls" "Get-PackageClass"
 Set-Alias "repo" "Get-PackageRepository"
 Set-Alias "prop" "Get-PackageProperty"
 Set-Alias "props" "Get-PackageConfiguration"
+Set-Alias "init" "Initialize-Package"
 
 Export-ModuleMember -Function @(
 	"Get-Package",
@@ -378,11 +516,13 @@ Export-ModuleMember -Function @(
 	"Get-PackageRepository",
 	"Get-PackageProperty",
 	"Get-PackageConfiguration",
-	"Set-PackageProperty"
+	"Set-PackageProperty",
+	"Initialize-Package"
 ) -Alias @(
 	"pkg",
 	"pcls",
 	"repo",
 	"prop",
-	"props"
+	"props",
+	"init"
 )
