@@ -447,7 +447,9 @@ function Initialize-Package {
 	[CmdLetBinding(SupportsShouldProcess=$true)]
 	param(
 		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] [Package] $Package,
-		[Parameter(Position = 0, Mandatory = $false)] [string] $Template
+		[Parameter(Position = 0, Mandatory = $false)] [string] $Template,
+		[switch] $Overwrite,
+		[switch] $Force
 	)
 
 	$defaultTemplate = $Package.Class.EffectiveConfiguration.getProperty("DefaultTemplate")
@@ -496,13 +498,21 @@ function Initialize-Package {
 		$null = $Package.Directory.Create()
 	}
 
+	$preExistingFiles = @(Get-ChildItem $Package.Directory.FullName -File -Recurse).Length -gt 0
+
 	if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:CreatePackageConfiguration")) {
 		$null = New-XmlPropertyContainer -Force (Join-Path $Package.Directory.FullName "package.props")
 	}
 
 	if ($foundTemplateFile -ne $null) {
+
+		if (-not $Force -and $preExistingFiles) {
+			Write-Error "The package directory ""$($Package.Directory.FullName)"" is not empty. If you wish to apply the template anyway, add the switch ""Force""."
+			Return
+		}
+
 		if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:ExpandTemplate(""$foundTemplateFile"")")) {
-			Expand-TemplatePackage -TemplateFile $foundTemplateFile -Destination $Package.Directory.FullName
+			Expand-TemplatePackage -TemplateFile $foundTemplateFile -Destination $Package.Directory.FullName -Force:$Overwrite
 		}
 	}
 }

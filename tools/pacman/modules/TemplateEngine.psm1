@@ -1,7 +1,8 @@
 function Expand-TemplatePackage {
     param(
         [Parameter(Mandatory = $true, ValueFromPipeline = $true)] [string] $TemplateFile,
-        [Parameter(Mandatory = $true, Position = 0)] [string] $Destination
+        [Parameter(Mandatory = $true, Position = 0)] [string] $Destination,
+        [switch] $Force
     )
 
     $TempPath = Join-Path $env:TEMP "~Template$($Destination.GetHashCode())"
@@ -29,7 +30,14 @@ function Expand-TemplatePackage {
         $null = New-Item -Path $Destination -ItemType Directory
     }
 
-    Get-ChildItem -Path $TempPath | Copy-Item -Destination $Destination
+    if (-not $Force) {
+        $preExistingFiles = @(Get-ChildItem -Path $Destination -Recurse -File | Where-Object { $_.FullName -ne (Join-Path $_.DirectoryName "package.props") })
+    }
+    else {
+        $preExistingFiles = @()
+    }
+
+    Get-ChildItem -Path $TempPath | Copy-Item -Destination $Destination -Exclude $preExistingFiles
     Remove-Item -Path $TempPath -Recurse -Force
 }
 
