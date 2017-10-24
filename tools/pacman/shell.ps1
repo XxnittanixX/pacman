@@ -1,6 +1,7 @@
 param(
 	[Parameter(Mandatory = $true, Position = 0)] [string] $RepositoryRoot,
-	[Parameter(Mandatory = $false)] [string] $DefaultRepository
+	[Parameter(Mandatory = $false)] [string] $DefaultRepository,
+	[Parameter(Mandatory = $false)] [string] $Environment
 )
 
 class ModuleContainer {
@@ -51,19 +52,41 @@ class ModuleContainer {
 $global:System = @{}
 $global:Repository = @{}
 
+function Set-Environment {
+	param([Parameter(ValueFromPipeline = $true, Position = 0)] [string] $TargetEnvironment)
+
+	$config = (New-XmlPropertyContainer (Join-Path $RepositoryRoot "config.props")).getObject()
+
+	if ([string]::IsNullOrWhiteSpace($TargetEnvironment)) {
+		return $global:Environment
+	}
+	
+	$env = $config.$TargetEnvironment
+	
+	if ($env -eq $null) {
+		$env = @{}
+	}
+	
+	$global:System.Environment = $env
+	$global:Environment = $TargetEnvironment
+	
+	return $TargetEnvironment
+}
+
 function Get-Repository { return $global:Repository }
 function Load-Shell { 
 	$PreviousErrorActionPreference = $ErrorActionPreference
 	write-host ""
 	
-	$classes = gci -recurse -filter "*.psm1" -path "$PSScriptRoot\modules"
-	$includes = gci -recurse -filter "*.ps1" -path "$PSScriptRoot\include"
+	$classes = gci -filter "*.psm1" -path "$PSScriptRoot\modules"
+	$includes = gci -filter "*.ps1" -path "$PSScriptRoot\include"
 	$success = $true
 	
 	$global:System = @{
 		Modules = (New-Object ModuleContainer)
 		RootDirectory = $RepositoryRoot
 		DefaultRepository = $DefaultRepository
+		Environment = @{}
 	}
 	
 	if ([string]::IsNullOrWhiteSpace($DefaultRepository)) { 
@@ -88,7 +111,6 @@ function Load-Shell {
 	}
 	
 	$global:Repository = Get-PackageRepository
-	
 	$displayTitle = $global:Repository.EffectiveConfiguration.getProperty("Title")
 	
 	if ([string]::IsNullOrWhiteSpace($displayTitle)) {
@@ -104,10 +126,13 @@ function Load-Shell {
 	{
 		."$include"
 	}
+	
+	Set-Environment -TargetEnvironment $Environment | Out-Null
 } 
 
 set-alias -Name reboot -Value Load-Shell
 set-alias -Name repo -Value Get-Repository
+set-alias -Name env -Value Set-Environment
 
 function prompt
 {
