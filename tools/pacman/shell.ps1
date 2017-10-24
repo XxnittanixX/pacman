@@ -1,7 +1,8 @@
 param(
 	[Parameter(Mandatory = $true, Position = 0)] [string] $RepositoryRoot,
 	[Parameter(Mandatory = $false)] [string] $DefaultRepository,
-	[Parameter(Mandatory = $false)] [string] $Environment
+	[Parameter(Mandatory = $false)] [string] $Environment,
+	[Parameter(Mandatory = $false)] [switch] $Headless
 )
 
 function Get-ShellParameters {
@@ -113,7 +114,7 @@ function Initialize-Shell {
 	
 	write-host ""
 	
-	if (-not $success) {
+	if (-not $success -and -not $Headless) {
 		$host.ui.RawUI.WindowTitle = "PACMAN - <unknown repository>"
 		exit
 	}
@@ -128,7 +129,9 @@ function Initialize-Shell {
 		$displayTitle = "<unknown repository>"
 	}
 	
-	$host.ui.RawUI.WindowTitle = "PACMAN - $displayTitle"
+	if (-not $Headless) {
+		Invoke-Expression -Command "`$host.ui.RawUI.WindowTitle = 'PACMAN - `$displayTitle'" -ErrorAction SilentlyContinue
+	}
 	
 	foreach($include in $includes) 
 	{
