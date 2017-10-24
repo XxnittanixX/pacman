@@ -512,7 +512,7 @@ function Initialize-Package {
 		}
 
 		if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:ExpandTemplate(""$foundTemplateFile"")")) {
-			Expand-TemplatePackage -TemplateFile $foundTemplateFile -Destination $Package.Directory.FullName -Force:$Overwrite
+			Expand-TemplatePackage -TemplateFile $foundTemplateFile -Destination $Package.Directory.FullName -Force:$Overwrite -Context $Package
 		}
 	}
 }

@@ -2,6 +2,7 @@ function Expand-TemplatePackage {
     param(
         [Parameter(Mandatory = $true, ValueFromPipeline = $true)] [string] $TemplateFile,
         [Parameter(Mandatory = $true, Position = 0)] [string] $Destination,
+        [Parameter(Mandatory = $false)] $Context,
         [switch] $Force
     )
 
@@ -21,7 +22,7 @@ function Expand-TemplatePackage {
         
         [IO.File]::WriteAllText(
             (Join-Path $item.DirectoryName $item.BaseName), 
-            (Get-Content -Raw -Path $item.FullName | Expand-Template))
+            (Get-Content -Raw -Path $item.FullName | Expand-Template -Context $Context))
 
         Remove-Item -Path $item.FullName -Force
     }
@@ -43,7 +44,8 @@ function Expand-TemplatePackage {
 
 function Expand-Template {
     param(
-        [Parameter(Mandatory = $true, ValueFromPipeline)] [string] $Template
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)] [string] $Template,
+        [Parameter(Mandatory = $false)] $Context
     )
 
     $beginTag = [regex]::Escape("[[")
@@ -60,6 +62,7 @@ function Expand-Template {
         try {
             [PowerShell] $isolatedShell = [PowerShell]::Create()
             $isolatedShell.Runspace = $isolatedRunspace
+            
             $null = $isolatedShell.AddScript("$PSScriptRoot\..\shell.ps1 $(Get-ShellParameters)")
             $null = $isolatedShell.Invoke()
         }
@@ -74,8 +77,8 @@ function Expand-Template {
             try {
                 [PowerShell] $isolatedShell = [PowerShell]::Create()
                 $isolatedShell.Runspace = $isolatedRunspace
-                $null = $isolatedShell.AddScript($matches.exp)
-                $scriptResult = $isolatedShell.Invoke()
+                $null = $isolatedShell.AddCommand("Foreach-Object").AddParameter("Process", [Scriptblock]::Create($matches.exp))
+                $scriptResult = $isolatedShell.Invoke(@($Context))
                 $compositeScriptResult = @($scriptResult | ForEach-Object { "$_" }) -join [Environment]::NewLine
                 $null = $outputStringBuilder.Append($compositeScriptResult)
             }
