@@ -91,7 +91,11 @@ class HierarchyLevel {
 	[ValidateNotNullOrEmpty()] [IO.DirectoryInfo]     $Directory
 	
 	[ValidateNotNullOrEmpty()] $Configuration
-	[ValidateNotNullOrEmpty()] $EffectiveConfiguration                    
+	[ValidateNotNullOrEmpty()] $EffectiveConfiguration
+	
+	[Package[]] getPackages() {
+		throw("Must be used in overriden class")
+	}
 	
 	[string] ToString() {
 		return $this.Name
@@ -99,15 +103,26 @@ class HierarchyLevel {
 }
 
 class PackageRepository : HierarchyLevel {
+	[Package[]] getPackages() {
+		return @(Get-Package -Filter "$($this.Directory.Name):*/*")
+	}
 }
 
 class PackageClass : HierarchyLevel {
 	[ValidateNotNullOrEmpty()] [PackageRepository] $Repository
+	
+	[Package[]] getPackages() {
+		return @(Get-Package -Filter "$($this.Repository.Directory.Name):$($this.Name)/*")
+	}
 }
 
 class Package : HierarchyLevel {
 	[ValidateNotNullOrEmpty()] [PackageRepository] $Repository
 	[ValidateNotNullOrEmpty()] [PackageClass]      $Class
+	
+	[Package[]] getPackages() {
+		return @($this)
+	}
 }
 
 function Get-PackageRepository {
