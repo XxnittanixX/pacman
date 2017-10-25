@@ -79,7 +79,6 @@ function Initialize-Shell {
 	write-host ""
 	
 	$classes = Get-ChildItem -filter "*.psm1" -path "$PSScriptRoot\modules"
-	$includes = Get-ChildItem -filter "*.ps1" -path "$PSScriptRoot\include"
 	$success = $true
 	
 	$global:System.Modules = New-Object ModuleContainer
