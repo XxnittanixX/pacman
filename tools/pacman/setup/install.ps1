@@ -9,9 +9,21 @@ $Branch = "master"
 [IO.DirectoryInfo] $TargetPacmanDirectory = Join-Path $TargetDirectory.FullName "tools\pacman"
 
 $ZipFile = Join-Path $TempDirectory.FullName "pacman-$Branch.zip"
+$LicenseText = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/xyrus02/pacman/$Branch/LICENSE" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty "Content"
+
+write-host -ForegroundColor cyan -NoNewline "PACMAN"
+write-host -ForegroundColor white " Developer Shell"
+write-host -ForegroundColor white "Copyright (c) XyrusWorx. All rights reserved."
+
+if (-not [string]::IsNullOrWhiteSpace($LicenseText)) {
+    write-host -ForegroundColor Gray "`n$($LicenseText.Trim(@("`r", "`n")))"
+}
+
+write-host ""
+
 $ErrorActionPreference = "Stop"
 
-if ($TempDirectory.Exists) { 
+if (Test-Path -Path $TempDirectory.FullName -PathType Container) { 
     Remove-Item -Force -Path $TempDirectory.FullName -Recurse 
 }
 
@@ -25,7 +37,7 @@ try {
     $null = Expand-Archive -Path $ZipFile -DestinationPath $TempDirectory.FullName
     Write-Host "OK" -ForegroundColor Green
 
-    if ($TargetPacmanDirectory.Exists) { 
+    if (Test-Path -Path $TargetPacmanDirectory.FullName -PathType Container) { 
         Write-Host "Clearing previous installation..." -NoNewline
         Remove-Item -Force -Path $TargetPacmanDirectory.FullName -Recurse 
         Write-Host "OK" -ForegroundColor Green
@@ -42,5 +54,15 @@ try {
 }
 catch {
     Write-Host "FAILED: $($_.Exception.Message)" -ForegroundColor Red
-    Exit
+}
+
+try {
+    if (Test-Path -Path $TempDirectory.FullName -PathType Container) { 
+        Write-Host "Cleaning up..." -NoNewline
+        Remove-Item -Force -Path $TempDirectory.FullName -Recurse 
+        Write-Host "OK" -ForegroundColor Green
+    }
+}
+catch {
+    Write-Host "FAILED: $($_.Exception.Message)" -ForegroundColor Red
 }
