@@ -130,7 +130,7 @@ function Initialize-Shell {
 	}
 	
 	if (-not $Headless) {
-		Invoke-Expression -Command "`$host.ui.RawUI.WindowTitle = 'PACMAN - `$displayTitle'" -ErrorAction SilentlyContinue
+		Invoke-Expression -Command "`$host.ui.RawUI.WindowTitle = 'PACMAN - $displayTitle'" -ErrorAction SilentlyContinue
 	}
 	
 	foreach($include in $includes) 
