@@ -100,7 +100,7 @@ function Invoke-Build {
                                     Write-Warning -Message $wlm.Groups[1].Value
                                 }
                                 else {
-                                    Write-Verbose $_.TrimStart()
+                                    Write-Information $_.TrimStart()
                                 }
                             }
     
