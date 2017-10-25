@@ -40,7 +40,7 @@ function Invoke-Build {
                     continue
                 }
     
-                if ($build.BeforeBuild -ne $null) {
+                if ($build.BeforeBuild -ne $null -and $pscmdlet.ShouldProcess("$($ref.Class)/$ref", "PreBuild")) {
                     Invoke-Isolated -Context $ref -Command $build.BeforeBuild -Shell $scriptShell -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
                 }
     
@@ -74,13 +74,13 @@ function Invoke-Build {
                             continue
                         }
     
-                        if ($pscmdlet.ShouldProcess("$($ref.Class)/$ref", "Build:$effectiveTarget")) {
-                            &"$buildEngineLauncher" -Package $ref -Project $projectFile -Target $effectiveTarget
+                        if ($pscmdlet.ShouldProcess("$($ref.Class)/$ref", "$($effectiveTarget):$($projectFile.Name)")) {
+                            &"$buildEngineLauncher" -Configuration $ref.EffectiveConfiguration.getObject("BuildProperties") -Project $projectFile -Target $effectiveTarget
                         }
                     }
                 }
             
-                if ($build.AfterBuild -ne $null) {
+                if ($build.AfterBuild -ne $null -and $pscmdlet.ShouldProcess("$($ref.Class)/$ref", "PostBuild")) {
                     Invoke-Isolated -Context $ref -Shell $scriptShell -Command $build.AfterBuild -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
                 }
             }
