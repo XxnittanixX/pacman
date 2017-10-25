@@ -39,10 +39,27 @@ function Expand-TemplatePackage {
         $preExistingFiles = @()
     }
 
+    [IO.FileInfo] $initScript = Join-Path $TempPath "init.ps1"
+    [IO.FileInfo] $updateScript = Join-Path $TempPath "update.ps1"
+
     Get-ChildItem -Path $TempPath | Copy-Item -Destination $Destination -Exclude $preExistingFiles
+
+    if ($initScript.Exists) {
+        if ($preExistingFiles.Count -eq 0) {
+            Get-Content -Raw -Path $initScript.FullName | Invoke-Isolated -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
+        }
+        Remove-Item -Force -Path (Join-Path $Destination $initScript.Name)
+    }
+    
+    if ($updateScript.Exists) {
+        if ($preExistingFiles.Count -gt 0) {
+            Get-Content -Raw -Path $updateScript.FullName | Invoke-Isolated -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
+        }
+        Remove-Item -Force -Path (Join-Path $Destination $updateScript.Name)
+    }
+
     Remove-Item -Path $TempPath -Recurse -Force
 }
-
 function Expand-Template {
     [CmdletBinding()]
     param(
