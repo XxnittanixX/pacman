@@ -46,10 +46,16 @@ try {
     Write-Host "Deploying to target..." -NoNewline
     $protectedFiles = @(
         Get-ChildItem -Path $TargetDirectory -Recurse -File | `
-        Where-Object { -not $_.DirectoryName -eq $TargetDirectory.FullName }
+            Where-Object { -not $_.DirectoryName -eq $TargetDirectory.FullName }
+    )
+
+    $excludedFiles = @(
+        @("README.md", "LICENSE", ".git*") | Foreach-Object { Get-ChildItem -Path (Join-Path $TempDirectory.FullName "pacman-$Branch") -Filter $_ }
     )
     
-    Get-ChildItem -Path (Join-Path $TempDirectory.FullName "pacman-$Branch") | Copy-Item -Destination $TargetDirectory -Exclude $protectedFiles -Force -Recurse
+    Get-ChildItem -Path (Join-Path $TempDirectory.FullName "pacman-$Branch") -Exclude $excludedFiles | `
+        Copy-Item -Destination $TargetDirectory -Exclude $protectedFiles -Force -Recurse
+
     Write-Host "OK" -ForegroundColor Green
 }
 catch {
