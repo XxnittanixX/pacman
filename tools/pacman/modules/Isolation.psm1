@@ -11,7 +11,7 @@ function New-Shell {
         try {
     
             $isolatedShell.Runspace = $Runspace
-            $null = $isolatedShell.AddScript("$PSScriptRoot\..\shell.ps1 $(Get-ShellParameters) -Headless") 
+            $null = $isolatedShell.AddScript("$PSScriptRoot\..\shell.ps1 -RepositoryRoot '$($global:System.RootDirectory)' -Environment '$($global:Environment)' -Headless") 
             $null = $isolatedShell.Invoke()
             
         }

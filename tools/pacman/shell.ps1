@@ -1,16 +1,8 @@
 param(
 	[Parameter(Mandatory = $true, Position = 0)] [string] $RepositoryRoot,
-	[Parameter(Mandatory = $false)] [string] $DefaultRepository,
 	[Parameter(Mandatory = $false)] [string] $Environment,
 	[Parameter(Mandatory = $false)] [switch] $Headless
 )
-
-function Get-ShellParameters {
-	return `
-		"-RepositoryRoot ""$RepositoryRoot""" + `
-		"-DefaultRepository ""$DefaultRepository""" + `
-		"-Environment ""$Environment"""
-}
 
 class ModuleContainer {
 
@@ -75,6 +67,25 @@ function Set-Environment {
 	$global:System.Environment = $env
 	$global:Environment = $TargetEnvironment
 	
+	if ([string]::IsNullOrWhiteSpace($global:System.Environment.DefaultRepository)) { 
+		$global:System.Environment.DefaultRepository = "src"
+	}
+
+	$global:Repository = Get-PackageRepository
+
+	$displayTitle = $global:Repository.EffectiveConfiguration.getProperty("Title")
+	
+	if ([string]::IsNullOrWhiteSpace($displayTitle)) {
+		$displayTitle = "$(([IO.DirectoryInfo] $RepositoryRoot).Name) ($($global:Repository.Name))"
+	}
+	if ([string]::IsNullOrWhiteSpace($displayTitle)) {
+		$displayTitle = "<unknown repository>"
+	}
+	
+	if (-not $Headless) {
+		Invoke-Expression -Command "`$host.ui.RawUI.WindowTitle = 'PACMAN - $displayTitle'" -ErrorAction SilentlyContinue
+	}
+
 	return $TargetEnvironment
 }
 
@@ -94,56 +105,32 @@ function Initialize-Shell {
 	$global:System = @{
 		Modules = (New-Object ModuleContainer)
 		RootDirectory = $RepositoryRoot
-		DefaultRepository = $DefaultRepository
 		Environment = @{}
 	}
-	
-	if ([string]::IsNullOrWhiteSpace($DefaultRepository)) { 
-		$global:System.DefaultRepository = "src"
-	}
-	
-	$global:Repository = $null
 	
 	foreach($class in $classes) 
 	{
 		$success = $success -and ($global:System.Modules.load($class.BaseName))
 	}
 	
+	Write-Host ""
+
 	$ErrorActionPreference = $PreviousErrorActionPreference
 	$PreviousErrorActionPreference = $null
 	
-	write-host ""
-	
-	if (-not $success -and -not $Headless) {
-		$host.ui.RawUI.WindowTitle = "PACMAN - <unknown repository>"
-		exit
-	}
-	
-	$global:Repository = Get-PackageRepository
-	$displayTitle = $global:Repository.EffectiveConfiguration.getProperty("Title")
-	
-	if ([string]::IsNullOrWhiteSpace($displayTitle)) {
-		$displayTitle = $global:Repository.Name
-	}
-	if ([string]::IsNullOrWhiteSpace($displayTitle)) {
-		$displayTitle = "<unknown repository>"
-	}
-	
-	if (-not $Headless) {
-		Invoke-Expression -Command "`$host.ui.RawUI.WindowTitle = 'PACMAN - $displayTitle'" -ErrorAction SilentlyContinue
-	}
-	
-	foreach($include in $includes) 
-	{
-		."$include"
-	}
-	
 	Set-Environment -TargetEnvironment $Environment | Out-Null
+
+	if ($success) {
+		foreach($include in $includes) 
+		{
+			."$include"
+		}
+	}
 } 
 
 function prompt {
-    $pl = (Get-Location).Path
-    $pb = "$($global:System.RootDirectory)".TrimEnd("\")
+    $pl = (([IO.DirectoryInfo](Get-Location).Path).FullName).TrimEnd("\")
+    $pb = (([IO.DirectoryInfo]$global:System.RootDirectory).FullName).TrimEnd("\")
     
     if ($pl.StartsWith($pb)) {
         $pl = $pl.Substring($pb.Length).TrimStart("\")
@@ -153,11 +140,13 @@ function prompt {
     return " "
 }
 
-write-host -ForegroundColor cyan -NoNewline "PACMAN"
-write-host -ForegroundColor white " Developer Shell"
-write-host -ForegroundColor white "Copyright (c) XyrusWorx. All rights reserved."
-
-write-host -ForegroundColor Gray "`n$(Get-Content -Raw (Join-Path $PSScriptRoot 'welcome.txt'))"
+if (-not $Headless) {
+	write-host -ForegroundColor cyan -NoNewline "PACMAN"
+	write-host -ForegroundColor white " Developer Shell"
+	write-host -ForegroundColor white "Copyright (c) XyrusWorx. All rights reserved."
+	
+	write-host -ForegroundColor Gray "`n$(Get-Content -Raw (Join-Path $PSScriptRoot 'welcome.txt'))"
+}
 
 Set-Alias -Name reboot -Value Initialize-Shell
 Set-Alias -Name env -Value Set-Environment

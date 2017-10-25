@@ -131,12 +131,12 @@ function Get-PackageRepository {
 	)
 	
 	if ([string]::IsNullOrWhiteSpace($Id)) {
-		$Id = $global:System.DefaultRepository
+		$Id = $global:System.Environment.DefaultRepository
 	}
 
 	$SolutionRoot = Join-Path $global:System.RootDirectory $Id
 	
-	if ($Id -ne $global:System.DefaultRepository) {
+	if ($Id -ne $global:System.Environment.DefaultRepository) {
 		$Prefix = "$($Id):"
 		$Suffix = " ($($Id))"
 	}
@@ -149,10 +149,10 @@ function Get-PackageRepository {
 	$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
 	
 	$PackageRepository = [PackageRepository] @{
-		Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
+		Name = $Id
 		Directory = $PackageRepositoryFolder
 		Configuration = $PackageRepositoryConfiguration
-		EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
+		EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($Id,@($PackageRepositoryConfiguration))
 	}
 
 	return $PackageRepository
@@ -177,13 +177,13 @@ function Get-PackageClass {
 
 		if ($Tokens.Length -eq 1) {
 			$Filter = $Tokens[0]
-			$RepositoryId = $global:System.DefaultRepository
+			$RepositoryId = $global:System.Environment.DefaultRepository
 		} else {
 			$Filter = $Tokens[1]
 			$RepositoryId = $Tokens[0]
 		}
 	} else {
-		$RepositoryId = $global:System.DefaultRepository
+		$RepositoryId = $global:System.Environment.DefaultRepository
 	}
 	
 	$SolutionRoot = Join-Path $global:System.RootDirectory $RepositoryId
@@ -194,7 +194,7 @@ function Get-PackageClass {
 
 	$Candidates = @(Get-ChildItem -Path $SolutionRoot -Directory -Filter $Filter)
 	
-	if ($RepositoryId -ne $global:System.DefaultRepository) {
+	if ($RepositoryId -ne $global:System.Environment.DefaultRepository) {
 		$Prefix = "$($RepositoryId):"
 		$Suffix = " ($($RepositoryId))"
 	}
@@ -205,7 +205,6 @@ function Get-PackageClass {
 
 	if ($Candidates.Length -eq 0) {
 		if (-not (Test-Validity -Id $Filter -IllegalChars @("*", "?"))) {
-			echo $Filter
 			return
 		}
 
@@ -216,10 +215,10 @@ function Get-PackageClass {
 		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
 		
 		$PackageRepository = [PackageRepository] @{
-			Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
+			Name = $RepositoryId
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($RepositoryId,@($PackageRepositoryConfiguration))
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -245,7 +244,7 @@ function Get-PackageClass {
 			Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($RepositoryId,@($PackageRepositoryConfiguration))
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -278,13 +277,13 @@ function Get-Package {
 
 		if ($Tokens.Length -eq 1) {
 			$Filter = $Tokens[0]
-			$RepositoryId = $global:System.DefaultRepository
+			$RepositoryId = $global:System.Environment.DefaultRepository
 		} else {
 			$Filter = $Tokens[1]
 			$RepositoryId = $Tokens[0]
 		}
 	} else {
-		$RepositoryId = $global:System.DefaultRepository
+		$RepositoryId = $global:System.Environment.DefaultRepository
 	}
 	
 	$SolutionRoot = Join-Path $global:System.RootDirectory $RepositoryId
@@ -312,7 +311,7 @@ function Get-Package {
 		Get-ChildItem -Path $SolutionRoot -Directory -Filter $Class | % { `
 		Get-ChildItem -Path $_.FullName -Directory -Filter $Name })
 		
-	if ($RepositoryId -ne $global:System.DefaultRepository) {
+	if ($RepositoryId -ne $global:System.Environment.DefaultRepository) {
 		$Prefix = "$($RepositoryId):"
 		$Suffix = " ($($RepositoryId))"
 	}
@@ -323,7 +322,6 @@ function Get-Package {
 
 	if ($Candidates.Length -eq 0) {
 		if (-not (Test-Validity -Id "$Class\$Name" -IllegalChars @("*", "?"))) {
-			echo $Filter
 			return
 		}
 
@@ -337,7 +335,7 @@ function Get-Package {
 		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
 		
 		$PackageRepository = [PackageRepository] @{
-			Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
+			Name = $RepositoryId
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
 			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))

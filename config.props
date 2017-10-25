@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <DefaultEnvironment>Local</DefaultEnvironment>
+  </PropertyGroup>
   <PropertyGroup Label="Local">
+    <DefaultRepository>src</DefaultRepository>
     <BuildEngine>MSBuild</BuildEngine>
     <BuildToolsPath>C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin</BuildToolsPath>
   </PropertyGroup>
