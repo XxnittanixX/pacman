@@ -16,7 +16,7 @@ $null = $CommonAttributes.Add("DelaySign",[System.Boolean])
 $null = $CommonAttributes.Add("KeyFile",[System.String])
 $null = $CommonAttributes.Add("KeyName",[System.String])
 
-function Get-Attributes {
+function Get-AssemblyAttributes {
     param(
         [Parameter(ValueFromPipeline = $true, Mandatory = $false)] [string] $InputString
     )
@@ -49,13 +49,13 @@ function Get-Attributes {
     }
 }
 
-function Get-Attribute {
+function Get-AssemblyAttribute {
     param(
         [Parameter(ValueFromPipeline = $true, Mandatory = $true)]  [string] $InputString,
         [Parameter(ValueFromPipeline = $true, Position = 0, Mandatory = $true)]  [string] $Name
     )
 
-    $attribute = $InputString | Get-Attributes | Where-Object { $_.Name -eq $Name } | Select-Object -First 1
+    $attribute = $InputString | Get-AssemblyAttributes | Where-Object { $_.Name -eq $Name } | Select-Object -First 1
 
     if ($attribute -ne $null) { 
         return $attribute.Value 
@@ -64,7 +64,7 @@ function Get-Attribute {
     return $null
 }
 
-function Set-Attribute {
+function Set-AssemblyAttribute {
     param(
         [Parameter(ValueFromPipeline = $true, Mandatory = $false)] [string] $InputString,
         [Parameter(ValueFromPipeline = $true, Mandatory = $false)] [switch] $Raw,
@@ -74,7 +74,7 @@ function Set-Attribute {
     )
 
     $InputString = "$InputString"
-    $attribute = $InputString | Get-Attributes | Where-Object { $_.Name -eq $Name } | Select-Object -First 1
+    $attribute = $InputString | Get-AssemblyAttributes | Where-Object { $_.Name -eq $Name } | Select-Object -First 1
     $outputStringBuilder = New-Object System.Text.StringBuilder
 
     if ($attribute -ne $null) { 
@@ -124,7 +124,7 @@ function Set-Attribute {
 }
 
 Export-ModuleMember -Function @(
-    "Get-Attributes",
-    "Get-Attribute",
-    "Set-Attribute"
+    "Get-AssemblyAttributes",
+    "Get-AssemblyAttribute",
+    "Set-AssemblyAttribute"
 )
