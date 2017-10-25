@@ -4,4 +4,4 @@ for /F "tokens=* USEBACKQ" %%F in (`powershell -nologo -noprofile -command "impo
   set ENV=%%F
 )
 
-powershell -nologo -noexit -command ".'%~d0%~p0tools\pacman\shell.ps1' -RepositoryRoot '%~d0%~p0' -Environment '%ENV%'"
+powershell -nologo -noexit -command ".'%~d0%~p0tools\pacman\LaunchShell.ps1' -RepositoryRoot '%~d0%~p0' -Environment '%ENV%'"
