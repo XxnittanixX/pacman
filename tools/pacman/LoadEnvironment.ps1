@@ -1,5 +1,5 @@
 param(
-	[Parameter(Mandatory = $false, Position = 0)] [string] $Environment,
+	[Parameter(Mandatory = $false, Position = 0)] [string] $Environment
 )
 
 Import-Module "$PSScriptRoot\modules\Configuration.psm1"

@@ -49,46 +49,6 @@ class ModuleContainer {
 	}
 }
 
-function Set-Environment {
-	param([Parameter(ValueFromPipeline = $true, Position = 0)] [string] $TargetEnvironment)
-
-	$config = (New-XmlPropertyContainer (Join-Path $RepositoryRoot "config.props")).getObject()
-
-	if ([string]::IsNullOrWhiteSpace($TargetEnvironment)) {
-		return $global:Environment
-	}
-	
-	$env = $config.$TargetEnvironment
-	
-	if ($env -eq $null) {
-		$env = @{}
-	}
-	
-	$global:System.Environment = $env
-	$global:Environment = $TargetEnvironment
-	
-	if ([string]::IsNullOrWhiteSpace($global:System.Environment.DefaultRepository)) { 
-		$global:System.Environment.DefaultRepository = "src"
-	}
-
-	$global:Repository = Get-PackageRepository
-
-	$displayTitle = $global:Repository.EffectiveConfiguration.getProperty("Title")
-	
-	if ([string]::IsNullOrWhiteSpace($displayTitle)) {
-		$displayTitle = "$(([IO.DirectoryInfo] $RepositoryRoot).Name) ($($global:Repository.Name))"
-	}
-	if ([string]::IsNullOrWhiteSpace($displayTitle)) {
-		$displayTitle = "<unknown repository>"
-	}
-	
-	if (-not $Headless) {
-		Invoke-Expression -Command "`$host.ui.RawUI.WindowTitle = 'PACMAN - $displayTitle'" -ErrorAction SilentlyContinue
-	}
-
-	return $TargetEnvironment
-}
-
 function Initialize-Shell { 
 	Remove-Variable * -ErrorAction SilentlyContinue
 	Remove-Module *
@@ -105,6 +65,7 @@ function Initialize-Shell {
 	$global:System = @{
 		Modules = (New-Object ModuleContainer)
 		RootDirectory = $RepositoryRoot
+		IsHeadlessShell = $Headless
 		Environment = @{}
 	}
 	
@@ -140,7 +101,7 @@ function prompt {
     return " "
 }
 
-if (-not $Headless) {
+if (-not $global:System.IsHeadlessShell) {
 	write-host -ForegroundColor cyan -NoNewline "PACMAN"
 	write-host -ForegroundColor white " Developer Shell"
 	write-host -ForegroundColor white "Copyright (c) XyrusWorx. All rights reserved."
@@ -149,5 +110,4 @@ if (-not $Headless) {
 }
 
 Set-Alias -Name reboot -Value Initialize-Shell
-Set-Alias -Name env -Value Set-Environment
 Initialize-Shell
