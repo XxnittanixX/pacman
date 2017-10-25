@@ -56,6 +56,7 @@ function Initialize-Shell {
 	$error.Clear()
 
 	$PreviousErrorActionPreference = $ErrorActionPreference
+	$ErrorActionPreference = "Continue"
 	write-host ""
 	
 	$classes = Get-ChildItem -filter "*.psm1" -path "$PSScriptRoot\modules"
@@ -68,10 +69,37 @@ function Initialize-Shell {
 		IsHeadlessShell = $Headless
 		Environment = @{}
 	}
+
+	Write-Host -NoNewLine "Loading external dependencies..."
+	Push-Location $PSScriptRoot
+
+	$paketExecutable = "$PSScriptRoot\.paket\paket.exe"
+	$paketOutput = & $paketExecutable install -s 2>&1
+	$paketErrors = @($paketOutput | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | Foreach-Object { $_.Exception.Message })
+
+	Pop-Location
+
+	if ($LASTEXITCODE -ne 0) {
+		if ($paketErrors.Length -eq 0) {
+			$paketErrors = @("Paket failed with exit code $LASTEXITCODE.")
+		}
+
+		$paketErrors = @($paketOutput | Foreach-Object { if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_ } }) 
+		$compositePaketError = $paketErrors -join [Environment]::NewLine
+		
+		Write-Host -ForegroundColor Red "FAILED: $compositePaketError"
+		$success = $false
+	}
+
+	$ErrorActionPreference = "Stop"
 	
-	foreach($class in $classes) 
-	{
-		$success = $success -and ($global:System.Modules.load($class.BaseName))
+	if (-$success){
+		Write-Host -ForegroundColor Green "OK"
+
+		foreach($class in $classes) 
+		{
+			$success = $success -and ($global:System.Modules.load($class.BaseName))
+		}
 	}
 	
 	Write-Host ""
@@ -79,7 +107,9 @@ function Initialize-Shell {
 	$ErrorActionPreference = $PreviousErrorActionPreference
 	$PreviousErrorActionPreference = $null
 	
-	Set-Environment -TargetEnvironment $Environment | Out-Null
+	if ($null -ne (Get-Command "Set-Environment" -ErrorAction SilentlyContinue)) {
+		Set-Environment -TargetEnvironment $Environment | Out-Null
+	}
 
 	if ($success) {
 		foreach($include in $includes) 
