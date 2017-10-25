@@ -1,9 +1,28 @@
 param(
 	[Parameter(Mandatory = $true, Position = 0)] [string] $RepositoryRoot,
-	[Parameter(Mandatory = $false)] [string] $Environment,
+	[Parameter(Mandatory = $true, Position = 1)] [string] $Environment,
 	[Parameter(Mandatory = $false)] [switch] $Headless
 )
 
+# These modules are required by this script so we import them here. They will be unloaded and reloaded when calling "Initialize-Shell"
+Import-Module "$PSScriptRoot\modules\Environment.psm1"
+Import-Module "$PSScriptRoot\modules\Configuration.psm1"
+Import-Module "$PSScriptRoot\modules\Isolation.psm1"
+Import-Module "$PSScriptRoot\modules\TemplateEngine.psm1"
+Import-Module "$PSScriptRoot\modules\PackageManager.psm1"
+
+# Globals
+$global:System = @{
+	RootDirectory   = $RepositoryRoot
+	IsHeadlessShell = $Headless
+	Version         = (New-XmlPropertyContainer "$PSScriptRoot\system.props").getProperty("Version")
+	Environment     = @{}
+	Modules         = $null
+}
+
+$global:Environment = $Environment
+
+# Definitions
 class ModuleContainer {
 
 	hidden [System.Collections.Generic.HashSet[System.String]] $_Modules
@@ -63,12 +82,7 @@ function Initialize-Shell {
 	$includes = Get-ChildItem -filter "*.ps1" -path "$PSScriptRoot\include"
 	$success = $true
 	
-	$global:System = @{
-		Modules = (New-Object ModuleContainer)
-		RootDirectory = $RepositoryRoot
-		IsHeadlessShell = $Headless
-		Environment = @{}
-	}
+	$global:System.Modules = New-Object ModuleContainer
 
 	Write-Host -NoNewLine "Loading external dependencies..."
 	Push-Location $PSScriptRoot
@@ -110,15 +124,9 @@ function Initialize-Shell {
 	if ($null -ne (Get-Command "Set-Environment" -ErrorAction SilentlyContinue)) {
 		Set-Environment -TargetEnvironment $Environment | Out-Null
 	}
-
-	if ($success) {
-		foreach($include in $includes) 
-		{
-			."$include"
-		}
-	}
 } 
 
+# Shell prompt
 function prompt {
     $pl = (([IO.DirectoryInfo](Get-Location).Path).FullName).TrimEnd("\")
     $pb = (([IO.DirectoryInfo]$global:System.RootDirectory).FullName).TrimEnd("\")
@@ -131,12 +139,32 @@ function prompt {
     return " "
 }
 
+# Logic when executing initially
 if (-not $global:System.IsHeadlessShell) {
-	write-host -ForegroundColor cyan -NoNewline "PACMAN"
-	write-host -ForegroundColor white " Developer Shell"
-	write-host -ForegroundColor white "Copyright (c) XyrusWorx. All rights reserved."
+	Set-Environment -TargetEnvironment $Environment | Out-Null
 	
-	write-host -ForegroundColor Gray "`n$(Get-Content -Raw (Join-Path $PSScriptRoot 'welcome.txt'))"
+	$displayTitle = $global:Repository.EffectiveConfiguration.getProperty("Title")
+        
+	if ([string]::IsNullOrWhiteSpace($displayTitle)) {
+		$displayTitle = "$(([IO.DirectoryInfo] $global:System.RootDirectory).Name)"
+	}
+
+	write-host -ForegroundColor cyan -NoNewline $displayTitle
+	write-host -ForegroundColor white " Developer Shell"
+	write-host -ForegroundColor white "Version $($global:System.Version)"
+	
+	$licenseFiles = @(
+		'LICENSE',
+		'LICENSE.txt'
+	)
+	
+	foreach($licenseFile in $licenseFiles) {
+		$licenseFullPath = Join-Path $PSScriptRoot "..\..\$licenseFile"
+		if (Test-Path -PathType Leaf $licenseFullPath) {
+			$licenseText = (Get-Content -Raw $licenseFullPath | Expand-Template).Trim(@("`r","`n"))
+			write-host -ForegroundColor Gray "`n$licenseText"
+		}
+	}
 }
 
 Set-Alias -Name reboot -Value Initialize-Shell
