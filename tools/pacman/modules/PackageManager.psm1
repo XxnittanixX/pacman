@@ -187,12 +187,12 @@ function Get-PackageClass {
 	}
 	
 	$SolutionRoot = Join-Path $global:System.RootDirectory $RepositoryId
-	
-	if (-not (Test-Path $SolutionRoot -PathType Container)) {
-		return
-	}
 
-	$Candidates = @(Get-ChildItem -Path $SolutionRoot -Directory -Filter $Filter)
+	if (-not (Test-Path $SolutionRoot -PathType Container)) {
+		$Candidates = @()
+	} else {
+		$Candidates = @(Get-ChildItem -Path $SolutionRoot -Directory -Filter $Filter)
+	}
 	
 	if ($RepositoryId -ne $global:System.Environment.DefaultRepository) {
 		$Prefix = "$($RepositoryId):"
@@ -287,10 +287,6 @@ function Get-Package {
 	}
 	
 	$SolutionRoot = Join-Path $global:System.RootDirectory $RepositoryId
-	
-	if (-not (Test-Path $SolutionRoot -PathType Container)) {
-		return
-	}
 
 	if ($Filter.Contains("/")) {
 		$Tokens = $Filter.Split(@("/"), 2, [StringSplitOptions]::RemoveEmptyEntries)
@@ -307,9 +303,13 @@ function Get-Package {
 		$Class = "*"
 	}
 
-	$Candidates = @( `
-		Get-ChildItem -Path $SolutionRoot -Directory -Filter $Class | % { `
-		Get-ChildItem -Path $_.FullName -Directory -Filter $Name })
+	if (-not (Test-Path $SolutionRoot -PathType Container)) {
+		$Candidates = @()
+	} else {
+		$Candidates = @( `
+			Get-ChildItem -Path $SolutionRoot -Directory -Filter $Class | % { `
+			Get-ChildItem -Path $_.FullName -Directory -Filter $Name })
+	}
 		
 	if ($RepositoryId -ne $global:System.Environment.DefaultRepository) {
 		$Prefix = "$($RepositoryId):"
@@ -449,6 +449,11 @@ function Initialize-Package {
 		[switch] $Overwrite,
 		[switch] $Force
 	)
+
+	if ($Package -eq $null) {
+		Write-Error "The package provided is not refering to a valid package directory."
+		Return
+	}
 
 	$defaultTemplate = $Package.Class.EffectiveConfiguration.getProperty("DefaultTemplate")
 
