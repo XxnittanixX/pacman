@@ -3,7 +3,7 @@ function Get-Environment { return Set-Environment }
 function Set-Environment {
 	param([Parameter(ValueFromPipeline = $true, Position = 0)] [string] $TargetEnvironment)
 
-	$config = (New-XmlPropertyContainer (Join-Path $global:System.RootDirectory "config.props")).getObject()
+	$config = (New-PropertyContainer (Join-Path $global:System.RootDirectory "config.json")).getObject()
 
 	if ([string]::IsNullOrWhiteSpace($TargetEnvironment)) {
 		return $global:Environment

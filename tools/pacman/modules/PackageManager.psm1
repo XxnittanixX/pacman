@@ -146,7 +146,7 @@ function Get-PackageRepository {
 	}
 	
 	$PackageRepositoryFolder = [IO.DirectoryInfo] $SolutionRoot
-	$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
+	$PackageRepositoryConfiguration = New-PropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.json")
 	
 	$PackageRepository = [PackageRepository] @{
 		Name = $Id
@@ -209,10 +209,10 @@ function Get-PackageClass {
 		}
 
 		$PackageClassFolder = [IO.DirectoryInfo] (Join-Path $SolutionRoot $Filter)
-		$PackageClassConfiguration = New-XmlPropertyContainer (Join-Path $PackageClassFolder.FullName "package.props")
+		$PackageClassConfiguration = New-PropertyContainer (Join-Path $PackageClassFolder.FullName "package.json")
 		
 		$PackageRepositoryFolder = [IO.DirectoryInfo] $SolutionRoot
-		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
+		$PackageRepositoryConfiguration = New-PropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.json")
 		
 		$PackageRepository = [PackageRepository] @{
 			Name = $RepositoryId
@@ -235,10 +235,10 @@ function Get-PackageClass {
 	foreach($Candidate in $Candidates) {
 
 		$PackageClassFolder = [IO.DirectoryInfo]$Candidate
-		$PackageClassConfiguration = New-XmlPropertyContainer (Join-Path $PackageClassFolder.FullName "package.props")
+		$PackageClassConfiguration = New-PropertyContainer (Join-Path $PackageClassFolder.FullName "package.json")
 		
 		$PackageRepositoryFolder = $PackageClassFolder.Parent
-		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
+		$PackageRepositoryConfiguration = New-PropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.json")
 		
 		$PackageRepository = [PackageRepository] @{
 			Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
@@ -326,13 +326,13 @@ function Get-Package {
 		}
 
 		$PackageFolder = [IO.DirectoryInfo] (Join-Path $SolutionRoot "$Class\$Name")
-		$PackageConfiguration = New-XmlPropertyContainer (Join-Path $PackageFolder.FullName "package.props")
+		$PackageConfiguration = New-PropertyContainer (Join-Path $PackageFolder.FullName "package.json")
 
 		$PackageClassFolder = [IO.DirectoryInfo] (Join-Path $SolutionRoot "$Class")
-		$PackageClassConfiguration = New-XmlPropertyContainer (Join-Path $PackageClassFolder.FullName "package.props")
+		$PackageClassConfiguration = New-PropertyContainer (Join-Path $PackageClassFolder.FullName "package.json")
 		
 		$PackageRepositoryFolder = [IO.DirectoryInfo] $SolutionRoot
-		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
+		$PackageRepositoryConfiguration = New-PropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.json")
 		
 		$PackageRepository = [PackageRepository] @{
 			Name = $RepositoryId
@@ -364,13 +364,13 @@ function Get-Package {
 	foreach($Candidate in $Candidates) {
 		
 		$PackageFolder = [IO.DirectoryInfo]$Candidate
-		$PackageConfiguration = New-XmlPropertyContainer (Join-Path $PackageFolder.FullName "package.props")
+		$PackageConfiguration = New-PropertyContainer (Join-Path $PackageFolder.FullName "package.json")
 		
 		$PackageClassFolder = $PackageFolder.Parent
-		$PackageClassConfiguration = New-XmlPropertyContainer (Join-Path $PackageClassFolder.FullName "package.props")
+		$PackageClassConfiguration = New-PropertyContainer (Join-Path $PackageClassFolder.FullName "package.json")
 		
 		$PackageRepositoryFolder = $PackageClassFolder.Parent
-		$PackageRepositoryConfiguration = New-XmlPropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.props")
+		$PackageRepositoryConfiguration = New-PropertyContainer (Join-Path $PackageRepositoryFolder.FullName "package.json")
 		
 		$PackageRepository = [PackageRepository] @{
 			Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
@@ -504,7 +504,7 @@ function Initialize-Package {
 	$preExistingFiles = @(Get-ChildItem $Package.Directory.FullName -File -Recurse).Length -gt 0
 
 	if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:CreatePackageConfiguration")) {
-		$null = New-XmlPropertyContainer -Force (Join-Path $Package.Directory.FullName "package.props")
+		$null = New-PropertyContainer -Force (Join-Path $Package.Directory.FullName "package.json")
 	}
 
 	if ($foundTemplateFile -ne $null) {

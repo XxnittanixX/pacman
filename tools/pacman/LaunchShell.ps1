@@ -15,7 +15,7 @@ Import-Module "$PSScriptRoot\modules\PackageManager.psm1"
 $global:System = @{
 	RootDirectory   = $RepositoryRoot
 	IsHeadlessShell = $Headless
-	Version         = (New-XmlPropertyContainer "$PSScriptRoot\system.props").getProperty("Version")
+	Version         = (New-PropertyContainer "$PSScriptRoot\system.json").getProperty("Version")
 	Environment     = @{}
 	Modules         = $null
 }

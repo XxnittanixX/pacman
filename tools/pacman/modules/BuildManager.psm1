@@ -9,7 +9,7 @@ function Invoke-Build {
         $buildEngine = $global:System.Environment.BuildEngine
         
         if ([string]::IsNullOrWhiteSpace($buildEngine)) {
-            throw("The environment variable ""BuildEngine"" was not set. Please use the file ""config.props"" in the repository root to provide the variable for the loaded environment ""$(env)"".")
+            throw("The environment variable ""BuildEngine"" was not set. Please use the file ""config.json"" in the repository root to provide the variable for the loaded environment ""$(env)"".")
         }
         
         $buildEngineLauncher = Join-Path $PSScriptRoot "..\build\$buildEngine.ps1"

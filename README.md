@@ -31,18 +31,24 @@ properly set.
 This section is currently being written. Please stay tuned!
 
 ## Configuration
-The configuration of PACMAN is done using XML files with the extension "props".
-These files share the MSBuild namespace and can theoretically be included in
-MSBuild projects. However, PACMAN does not necessarily require MSBuild to 
-operate. 
+The configuration of PACMAN is done using JSON files with a loose structure.
 
-Each node in a `PropertyGroup` is a property. The text inside the node is the
-value. The `Label` attribute of a property group is used to allow different
-propert scopes in a single configuration file. This usage of `Label` is not
-consistent with MSBuild behavior and needs to be kept in mind when including
-configuration files in MSBuild projects!
+PACMAN operates by distinguishing between "properties" and "property groups"
+as the configuration system is based on the idea of a key-value store. The
+following schema is applied:
 
-The main configuration is in the file `config.props` at the root directory.
+	{
+		"property1": "value",
+		"propertyGroup1": {
+			"property2": "value"
+		}
+	}
+
+`property1` and `property2` are (simple) properties while `propertyGroup1` is
+a property group containing `property2` but not `property1`. Deeper structures
+are currently not supported by the query commands but might be later.
+
+The main configuration is in the file `config.json` at the root directory.
 It contains one property group for each environment. By changing environments,
 the global variable `$global:System.Environment` is set to a hashtable with all
 properties in the respective node. The property group without a label contains

@@ -33,7 +33,7 @@ function Expand-TemplatePackage {
     }
 
     if (-not $Force) {
-        $preExistingFiles = @(Get-ChildItem -Path $Destination -Recurse -File | Where-Object { $_.FullName -ne (Join-Path $_.DirectoryName "package.props") })
+        $preExistingFiles = @(Get-ChildItem -Path $Destination -Recurse -File | Where-Object { $_.FullName -ne (Join-Path $_.DirectoryName "package.json") })
     }
     else {
         $preExistingFiles = @()

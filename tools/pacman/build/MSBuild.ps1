@@ -7,7 +7,7 @@ param(
 $buildTools = $global:System.Environment.BuildToolsPath
 
 if ([string]::IsNullOrWhiteSpace($buildTools)) {
-    throw("The environment variable ""BuildToolsPath"" was not set. Please use the file ""config.props"" in the repository root to provide the variable for the loaded environment ""$(env)"".")
+    throw("The environment variable ""BuildToolsPath"" was not set. Please use the file ""config.json"" in the repository root to provide the variable for the loaded environment ""$(env)"".")
 }
 
 $msbuildExecutable = Join-Path $buildTools "msbuild.exe"
