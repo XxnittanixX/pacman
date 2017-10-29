@@ -7,19 +7,27 @@ function Expand-TemplatePackage {
         [switch] $Force
     )
 
-    $TempPath = Join-Path $env:TEMP "~Template$($Destination.GetHashCode())"
-
-    if (Test-Path -Path $TempPath -PathType Container) {
-        Remove-Item -Path $TempPath -Recurse -Force
+    $ContentPath = Join-Path $env:TEMP "~Template$($Destination.GetHashCode())"
+    
+    if (Test-Path -Path $ContentPath -PathType Container) {
+        Remove-Item -Path $ContentPath -Recurse -Force
     }
 
-    $null = New-Item -Path $TempPath -ItemType Directory
-
-    Copy-Item -Path $TemplateFile -Destination "$TempPath.zip"
-    Expand-Archive -Path "$TempPath.zip" -DestinationPath $TempPath
-    Remove-Item -Force -Path "$TempPath.zip"
+    if (Test-Path -Path $TemplateFile -PathType Container) {
+        Copy-Item -Path $TemplateFile -Destination $ContentPath -Recurse
+    } 
+    elseif (Test-Path -Path $TemplateFile -PathType Leaf) {
+        $null = New-Item -Path $ContentPath -ItemType Directory
     
-    foreach($item in @(Get-ChildItem -Path $TempPath -Recurse -Filter "*.pp" -File)) {
+        Copy-Item -Path $TemplateFile -Destination "$ContentPath.zip"
+        Expand-Archive -Path "$ContentPath.zip" -DestinationPath $ContentPath
+        Remove-Item -Force -Path "$ContentPath.zip"
+    } 
+    else {
+        throw("Template file ""$TemplateFile"" not found.")
+    }
+    
+    foreach($item in @(Get-ChildItem -Path $ContentPath -Recurse -Filter "*.pp" -File)) {
         
         [IO.File]::WriteAllText(
             (Join-Path $item.DirectoryName $item.BaseName), 
@@ -39,10 +47,10 @@ function Expand-TemplatePackage {
         $preExistingFiles = @()
     }
 
-    [IO.FileInfo] $initScript = Join-Path $TempPath "init.ps1"
-    [IO.FileInfo] $updateScript = Join-Path $TempPath "update.ps1"
+    [IO.FileInfo] $initScript = Join-Path $ContentPath "init.ps1"
+    [IO.FileInfo] $updateScript = Join-Path $ContentPath "update.ps1"
 
-    Get-ChildItem -Path $TempPath | Copy-Item -Destination $Destination -Exclude $preExistingFiles
+    Get-ChildItem -Path $ContentPath | Copy-Item -Recurse -Destination $Destination -Exclude $preExistingFiles
 
     if ($initScript.Exists) {
         if ($preExistingFiles.Count -eq 0) {
@@ -58,7 +66,7 @@ function Expand-TemplatePackage {
         Remove-Item -Force -Path (Join-Path $Destination $updateScript.Name)
     }
 
-    Remove-Item -Path $TempPath -Recurse -Force
+    Remove-Item -Path $ContentPath -Recurse -Force
 }
 function Expand-Template {
     [CmdletBinding()]

@@ -477,13 +477,17 @@ function Initialize-Package {
 			foreach($templateExtension in $templateExtensions) { 
 				
 				$templateFile = Join-Path $global:System.RootDirectory "$templateSearchPath\$Template.$templateExtension"
+				$templateDir = Join-Path $global:System.RootDirectory "$templateSearchPath\$Template"
 
-				if (-not (Test-Path $templateFile -PathType Leaf)) {
-					continue
+				if (Test-Path $templateDir -PathType Container) {
+					$foundTemplateFile = $templateDir
+					break
 				}
 
-				$foundTemplateFile = $templateFile
-				break
+				if (Test-Path $templateFile -PathType Leaf) {
+					$foundTemplateFile = $templateFile
+					break
+				}
 			}
 			
 			if ($foundTemplateFile -ne $null) {
