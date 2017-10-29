@@ -83,10 +83,26 @@ function Expand-Template {
     $outputStringBuilder = New-Object "System.Text.StringBuilder"
 
     try {
+        $length = $inputString.Length
         while ($inputString -match "(?s)(?<pre>.*?)$beginTag(?<exp>.*?)$endTag(?<post>.*)") {
             $inputString = $matches.post
+
+            if ($inputString.Length -eq $length) {
+                Write-Warning "Template processor seems stuck. Is there a nested expression (not supported)? Aborting..."
+                break
+            }
+
             $null = $outputStringBuilder.Append($matches.pre)
-            $null = $outputStringBuilder.Append((Invoke-Isolated -Shell $shell -Command $matches.exp -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue") | Out-String).TrimEnd())
+            $expression = $matches.exp
+
+            Write-Verbose "Processing expression: $expression"
+            # TODO GK: Executing isolated commands seems to get stuck when WinRM is disabled. There should
+            # be a check whether this is the case and possibly a warning.
+            #$result = (Invoke-Isolated -Shell $shell -Command $expression -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue") | Out-String).TrimEnd()
+            $result = ($context | Invoke-Command -Command ([ScriptBlock]::Create("Foreach-Object { $expression }")) | Out-String).TrimEnd()
+           
+            Write-Verbose "Expression processor result: $result"
+            $null = $outputStringBuilder.Append($result)
         }
         
         $null = $outputStringBuilder.Append($inputString)
