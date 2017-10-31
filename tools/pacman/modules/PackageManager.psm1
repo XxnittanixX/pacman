@@ -160,7 +160,7 @@ function Get-PackageRepository {
 
 function Test-Validity { 
 	param([string] $Id, [char[]] $IllegalChars = [IO.Path]::GetInvalidFileNameChars()) 
-	return("$Id".ToCharArray()|?{(New-Object string @(,$IllegalChars)).Contains("$_")}).Count -eq 0
+	return("$Id".ToCharArray()|Where-Object{(New-Object string @(,$IllegalChars)).Contains("$_")}).Count -eq 0
 }
 
 function Get-PackageClass {
@@ -307,7 +307,7 @@ function Get-Package {
 		$Candidates = @()
 	} else {
 		$Candidates = @( `
-			Get-ChildItem -Path $SolutionRoot -Directory -Filter $Class | % { `
+			Get-ChildItem -Path $SolutionRoot -Directory -Filter $Class | Foreach-Object { `
 			Get-ChildItem -Path $_.FullName -Directory -Filter $Name })
 	}
 		
@@ -508,7 +508,11 @@ function Initialize-Package {
 	$preExistingFiles = @(Get-ChildItem $Package.Directory.FullName -File -Recurse).Length -gt 0
 
 	if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:CreatePackageConfiguration")) {
-		$null = New-PropertyContainer -Force (Join-Path $Package.Directory.FullName "package.json")
+		$packageProps = New-PropertyContainer -Force (Join-Path $Package.Directory.FullName "package.json")
+		
+		$packageProps.setProperty("name", $Package.Name)
+		$packageProps.setProperty("version", "0.1.0")
+		$packageProps.setProperty("description", $Package.Name)
 	}
 
 	if ($foundTemplateFile -ne $null) {
