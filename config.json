@@ -2,7 +2,7 @@
   "defaultEnvironment": "local",
   "local": {
     "defaultRepository": "src",
-    "buildEngine": "msbuild",
-    "buildToolsPath": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\MSBuild\\15.0\\Bin"
+    "buildEngine": "dotnet",
+    "buildToolsPath": "C:\\Program Files\\Dotnet"
   }
 }
