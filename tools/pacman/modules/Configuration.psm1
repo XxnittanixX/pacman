@@ -1,246 +1,147 @@
 ﻿class PropertyContainer {
 
-    hidden [string] $_Path = $Path
+    hidden [string] $_Path
+    hidden [object] $_ChildName
+    hidden [PropertyContainer] $_Owner
+    hidden [PSCustomObject] $_CachedModel
 
     PropertyContainer ([string] $Path) {
         if ([string]::IsNullOrWhiteSpace($Path)) {
-            Write-Error "Path can't be empty"
-            Return
+            throw("Path can't be empty")
         }
 
-        $this._Path  = $Path
+        $this._Path = [IO.Path]::GetFullPath($Path)
     }
 
-    [string] getProperty([string] $Property) { 
-        return $this.getProperty($null, $Property)
+    [object] getProperty([string] $Property) { 
+        if ([string]::IsNullOrWhiteSpace($Property)) {
+            throw("Property name can't be empty")
+        }
+
+        $node = $this.getObject()
+        return $this.getChildOrValue($node, $Property)
     }
-    [string] getProperty([string] $Group, [string] $Property) {
-        $raw = $this.loadPropertyContainer()
-        $propertyNode = $this.findPropertyNode($raw, $Property, $Group)
-
-        if ($propertyNode -eq $null) {
-            return $null
+    [void] setProperty([string] $Property, [object] $Value) { 
+        if ([string]::IsNullOrWhiteSpace($Property)) {
+            throw("Property name can't be empty")
         }
 
-        return $propertyNode
-    }
+        $node = $this.getObject()
 
-    [void] setProperty([string] $Property, [string] $Value) { 
-        $this.setProperty($null, $Property, $Value)
-    }
-    [void] setProperty([string] $Group, [string] $Property, [string] $Value) {
-        if ([string]::IsNullOrEmpty($Property)) {
-            return
+        if ($Value -is [System.Collections.Hashtable]) {
+            $Value = [PSCustomObject] $Value
         }
 
-        $object = $this.loadPropertyContainer()
-        $node = $object
-
-        if (-not [string]::IsNullOrWhiteSpace($Group)) {
-            $members = $object | Get-Member -Type NoteProperty | Where-Object {
-                $memberValue = $object | Select-Object -ExpandProperty $_.Name
-                $memberType = "System.Object"
-
-                if ($memberValue -ne $null) {
-                    $memberType = $memberValue.GetType().Name
-                }
-
-                $memberType -eq "PSCustomObject"
-            }
-
-            $matchingMember = $members `
-                | Where-Object { [string]::Equals($_.Name, "$Group".Trim(), "InvariantCultureIgnoreCase") } `
-                | Select-Object -First 1 -ExpandProperty $_.Name
-
-            if ($matchingMember -eq $null) {
-                $node = @{}
-                $object."$Group" = $node
-            } else {
-                $node = $object."$Group"
-            }
-        }
-
-        $members = $node | Get-Member -Type NoteProperty | Foreach-Object {
-            $memberValue = $node | Select-Object -ExpandProperty $_.Name
-            $memberType = "System.Object"
-
-            if ($memberValue -ne $null) {
-                $memberType = $memberValue.GetType().Name
-            }
-
-            @{Name = $_.Name; IsGroup = $memberType -eq "PSCustomObject"}
-        }
-
-        $matchingMember = $members `
-            | Where-Object { [string]::Equals($_.Name, "$Property".Trim(), "InvariantCultureIgnoreCase") } `
-            | Select-Object -First 1 -ExpandProperty $_.Name
-
-        if ($matchingMember -eq $null) {
-            $node | Add-Member -Type NoteProperty -Name $Property -Value $Value
-        } 
-        elseif ($matchingMember.IsGroup) {
-            throw("""$Property"" is a group and can't be set directly.")
-        }
-        else {
-            $node."$Property" = $Value
-        }
-
-        $object | ConvertTo-Json | Set-Content -Path $this._Path
+        $node | Add-Member -MemberType NoteProperty -Force -Name $Property -Value $Value
+        $this.saveRootNode();
     }
 
-    [string[]] getGroups() {
-        $object = $this.loadPropertyContainer()
-
-        if ($object -eq $null) {
-            return @()
+    [PropertyContainer] getChild([string] $Child){
+        if ([string]::IsNullOrWhiteSpace($Child)) {
+            throw("Child name can't be empty")
         }
 
-        $members = $object | Get-Member -Type NoteProperty | Where-Object {
-            $memberValue = $object | Select-Object -ExpandProperty $_.Name
-            $memberType = "System.Object"
-
-            if ($memberValue -ne $null) {
-                $memberType = $memberValue.GetType().Name
-            }
-
-            $memberType -eq "PSCustomObject"
-        }
-
-        $groupList = New-Object "System.Collections.Generic.HashSet[System.String]"
-
-        foreach($member in $members) {
-            $null = $groupList.Add($member.Name)
-        }
-
-        return @($groupList)
+        return [PropertyContainer]::new($this, $Child)
     }
-
-    [string[]] getProperties() {
-        
-        $object = $this.loadPropertyContainer()
-
-        if ($object -eq $null) {
-            return @()
-        }
-
-        $members = $object | Get-Member -Type NoteProperty | Where-Object {
-            $memberValue = $object | Select-Object -ExpandProperty $_.Name
-            $memberType = "System.Object"
-
-            if ($memberValue -ne $null) {
-                $memberType = $memberValue.GetType().Name
-            }
-
-            $memberType -ne "PSCustomObject"
-        }
-
-        $groupList = New-Object "System.Collections.Generic.HashSet[System.String]"
-
-        foreach($member in $members) {
-            $null = $groupList.Add($member.Name)
-        }
-
-        return @($groupList)
+    [PSCustomObject] getObject() {
+        return $this.readCurrentNode($false)
     }
-    [string[]] getProperties($Group) {
-        
-        $object = $this.findGroupNode($this.loadPropertyContainer(), $Group)
-
-        if ($object -eq $null) {
-            return @()
+    [string] getNodePath(){
+        if ($this._Owner -ne $null) {
+            return "$($this._Owner.getNodePath())/$($this._ChildName)"
         }
-
-        $members = $object | Get-Member -Type NoteProperty | Where-Object {
-            $memberValue = $object | Select-Object -ExpandProperty $_.Name
-            $memberType = "System.Object"
-
-            if ($memberValue -ne $null) {
-                $memberType = $memberValue.GetType().Name
-            }
-
-            $memberType -ne "PSCustomObject"
+        return [string]::Empty
+    }
+    [string] getTargetPath() {
+        if ([string]::IsNullOrWhiteSpace($this._Path)) {
+            return $this._Owner.getTargetPath()
         }
-
-        $groupList = New-Object "System.Collections.Generic.HashSet[System.String]"
-
-        foreach($member in $members) {
-            $null = $groupList.Add($member.Name)
-        }
-
-        return @($groupList)
-    }
-
-    [object] getObject() {
-        return $this.loadPropertyContainer()
-    }
-    [object] getObject([string] $Group) {
-        return $this.findGroupNode($this.loadPropertyContainer(), $Group)
-    }
-
-    [String] ToString() {
         return $this._Path
     }
 
-    hidden [object] loadPropertyContainer() {
-        if (-not (Test-Path $this._Path -PathType Leaf)) {
-            return @{}
-        }
-
-        return Get-Content -Raw $this._Path | ConvertFrom-Json
+    [string] ToString() {
+        return "$($this.getTargetPath()):/$($this.getNodePath().TrimStart("/"))"
     }
-    hidden [object] findGroupNode($object, [string] $Group = $null){
 
-        if ([string]::IsNullOrWhiteSpace($Group)) {
-            return @{}
+    hidden PropertyContainer ([PropertyContainer] $Owner, [string] $ChildName) {
+        if ($Owner -eq $null) {
+            throw("Owner can't be empty")
+        }
+        if ($ChildName -eq $null) {
+            throw("Child name can't be empty")
         }
 
-        $members = $object | Get-Member -Type NoteProperty | Where-Object {
-            $memberValue = $object | Select-Object -ExpandProperty $_.Name
-            $memberType = "System.Object"
+        $this._Owner = $Owner
+        $this._ChildName = $ChildName
+        $this._Path = $null
+    }
 
-            if ($memberValue -ne $null) {
-                $memberType = $memberValue.GetType().Name
+    hidden [PSCustomObject] readCurrentNode([bool] $avoidReload) {
+        if ([string]::IsNullOrWhiteSpace($this._Path)) {
+            return $this._Owner.readChildNode($this._ChildName,$avoidReload)
+        }
+
+        if (-not (Test-Path $this._Path -PathType Leaf)) {
+            if ($this._CachedModel -eq $null)
+            {
+                $this._CachedModel = $this.getNewNode()
             }
-
-            $memberType -eq "PSCustomObject"
+        }
+        else {
+            if (-not $avoidReload -or $this._CachedModel -eq $null) {
+                $this._CachedModel = Get-Content -Raw $this._Path | ConvertFrom-Json
+            }
         }
 
-        $matchingMember = $members `
-            | Where-Object { [string]::Equals($_.Name, "$Group".Trim(), "InvariantCultureIgnoreCase") } `
+        return $this._CachedModel
+    }
+    hidden [PSCustomObject] readChildNode([string] $ChildName, [bool] $avoidReload) {
+
+        $node = $this.readCurrentNode($avoidReload)
+        $member = $node `
+            | Get-Member -Type NoteProperty `
+            | Where-Object { [string]::Equals($_.Name, "$ChildName".Trim(), "InvariantCultureIgnoreCase") } `
             | Select-Object -First 1 -ExpandProperty $_.Name
 
-        if ($matchingMember -eq $null) {
-            return @{}
-        }
-
-        return $object | Select-Object -ExpandProperty $matchingMember.Name
-    }
-    hidden [object] findPropertyNode($object, [string] $Property, [string] $Group = $null) {
-
-        if (-not [string]::IsNullOrWhiteSpace($Group)) {
-            $object = $this.findGroupNode($object, $Group)
-        }
-
-        $members = $object | Get-Member -Type NoteProperty | Where-Object {
-            $memberValue = $object | Select-Object -ExpandProperty $_.Name
-            $memberType = "System.Object"
-
-            if ($memberValue -ne $null) {
-                $memberType = $memberValue.GetType().Name
+        if ($member -eq $null) {
+            $node | Add-Member -Type NoteProperty -Name $ChildName -Value ($this.getNewNode())
+            if (-not $avoidReload) {
+                $this.saveRootNode();
+                $node = $this.getObject()
             }
-
-            $memberType -ne "PSCustomObject"
         }
 
-        $matchingMember = $members `
+        return $node."$ChildName"
+    }
+    
+    hidden [PSCustomObject] getNewNode() {
+        return [PSCustomObject] @{ }
+    }
+    hidden [object] getChildOrValue([object] $Node, [string] $Property) {
+
+        if ($Node -eq $null) {
+            $Node = $this.getNewNode()
+        }
+
+        $member = $Node `
+            | Get-Member -Type NoteProperty `
             | Where-Object { [string]::Equals($_.Name, "$Property".Trim(), "InvariantCultureIgnoreCase") } `
             | Select-Object -First 1 -ExpandProperty $_.Name
 
-        if ($matchingMember -eq $null) {
+        if ($member -eq $null) {
             return $null
         }
 
-        return $object | Select-Object -ExpandProperty $matchingMember.Name
+        return $Node | Select-Object -ExpandProperty $member.Name
+    }
+    hidden [void] saveRootNode() {
+
+        if ($this._Owner -ne $null) {
+            $this._Owner.saveRootNode()
+        }
+        else {
+            $this.readCurrentNode($true) | ConvertTo-Json -Depth 100 | Set-Content $this._Path
+        }
     }
 }
 

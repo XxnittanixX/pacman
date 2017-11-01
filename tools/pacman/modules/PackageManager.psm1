@@ -1,88 +1,106 @@
-﻿class EffectiveConfigurationContainer {
+﻿function Join-Object {
+    param(
+        [Parameter(Mandatory = $true, Position = 0)] [object] $Left,
+        [Parameter(Mandatory = $true, Position = 1)] [object] $Right)
+
+    if ($Right -is [System.ValueType] -or $Right -is [System.String] -or $Left -is [System.ValueType] -or $Left -is [System.String]) {
+        return $Right
+    }
+
+    $Result = ([PSCustomObject] $Left)
+    $RightMembers = ([PSCustomObject] $Right) | Get-Member -MemberType NoteProperty
+
+    foreach($currentMember in $RightMembers) {
+        $currentName = $currentMember.Name
+
+        $leftMember = [Microsoft.PowerShell.Commands.MemberDefinition] ($Result | Get-Member -MemberType NoteProperty -Name $currentName | Select-Object -First 1)
+        $rightMember = [Microsoft.PowerShell.Commands.MemberDefinition] $currentMember
+
+        if ($leftMember -eq $null) {
+            $Result | Add-Member -MemberType NoteProperty -Name $rightMember.Name -Value ($Right."$currentName")
+            continue
+        }
+
+        if ($leftMember.MemberType -eq "NoteProperty") {
+            $compositeValue = Join-Object -Left ($Left."$currentName") -Right ($Right."$currentName")
+            $Result | Add-Member -MemberType NoteProperty -Force -Name $leftMember.Name -Value $compositeValue
+        }
+    }
+
+    return $Result
+}
+
+class MergeContainer {
 
 	hidden $_Metadata
 	hidden [Array] $_Containers
+	hidden [MergeContainer] $_Owner
+	hidden [string] $_ChildName
 	
-	EffectiveConfigurationContainer ([String] $OwnerId, [Array] $Containers) {
+	MergeContainer ([String] $OwnerId, [Array] $Containers) {
 		$this._Containers = @($Containers)
 		$this._Metadata = @{
-			Package = $OwnerId
+			Package = "$OwnerId"
 		}
+	}
+	hidden MergeContainer ([MergeContainer] $Owner, [string] $ChildName) {
+		if ($Owner -eq $null) {
+            throw("Owner can't be empty")
+        }
+        if ($ChildName -eq $null) {
+            throw("Child name can't be empty")
+        }
+
+		$this._Owner = $Owner
+		$this._ChildName = $ChildName
+		$this._Metadata = $Owner._Metadata
+		$this._Containers = @()
 	}
 	
-	[string] getProperty([string] $Property) { 
-		return $this.getProperty($null, $Property)
-	}
-	[string] getProperty([string] $Group, [string] $Property) {
-		
-		foreach($container in $this._Containers) {
-			$value = $container.getProperty($Group, $Property);
-			if (-not [string]::IsNullOrEmpty($value)) {
-				return $value
-			}
+	[object] getProperty([string] $Property) {
+		if ([string]::IsNullOrWhiteSpace($Property)) {
+            throw("Property name can't be empty")
 		}
 		
-		return $null
-	}
-
-	[string[]] getGroups() {
-
-		$groupList = New-Object "System.Collections.Generic.HashSet[System.String]"
-
-		foreach($container in $this._Containers) {
-			foreach($group in $container.getGroups()) {
-				$null = $groupList.Add($group)
-			}
+		if ($this._Owner -ne $null){
+			$obj = [PSCustomObject]($this._Owner.getProperty($this._ChildName))
+		} else {
+			$obj = $this.getObject()
 		}
 
-		return $groupList
+		return $obj."$Property"
 	}
+	[MergeContainer] getChild([string] $Child){
+        if ([string]::IsNullOrWhiteSpace($Child)) {
+            throw("Child name can't be empty")
+        }
 
-	[string[]] getProperties() {
-		return $this.getProperties($null);
-	}
-	[string[]] getProperties($Group) {
+        return [MergeContainer]::new($this, $Child)
+    }
+	[PSCustomObject] getObject() {
 	
-		$propertyList = New-Object "System.Collections.Generic.HashSet[System.String]"
-		
-		foreach($container in $this._Containers) {
-			foreach($property in $container.getProperties($Group)) {
-				$null = $propertyList.Add($property)
-			}
-		}
+		if ($this._Owner -ne $null){
+			return $this._Owner.getProperty($this._ChildName)
+		} 
 
-		return $propertyList
-	}
-	
-	[object] getObject() {
+		$obj = [PSCustomObject] $this._Metadata
 		
-		$obj = $this.getObject($null)
-
-		foreach($group in $this.getGroups()) {
-			Add-Member -InputObject $obj -MemberType NoteProperty -Name $group -Value ($this.getObject($group))
+		for($i = $this._Containers.Length - 1; $i -ge 0 ; $i--) {
+			$obj = Join-Object $obj ($this._Containers[$i].getObject())
 		}
 
 		return $obj
 	}
-	[object] getObject([string] $Group) {
-	
-		$obj = New-Object PSObject
-		
-		if ([string]::IsNullOrEmpty($Group)) {
-			foreach($key in $this._Metadata.Keys) {
-				Add-Member -InputObject $obj -MemberType NoteProperty -Name $key -Value ($this._Metadata[$key])
-			}
-		}
 
-		foreach($property in $this.getProperties($Group)) {
-			Add-Member -InputObject $obj -MemberType NoteProperty -Name $property -Value ($this.getProperty($Group, $property))
-		}
-
-		return $obj
-	}
+	[string] getNodePath(){
+        if ($this._Owner -ne $null) {
+            return "$($this._Owner.getNodePath())/$($this._ChildName)"
+        }
+        return [string]::Empty
+    }
 
 	[String] ToString() {
-		return $this._Containers[0].ToString()
+		return "$(Split-Path -Leaf -Path ($this._Containers[0].getTargetPath())):/$($this.getNodePath().TrimStart("/"))"
 	}
 }
 
@@ -152,7 +170,7 @@ function Get-PackageRepository {
 		Name = $Id
 		Directory = $PackageRepositoryFolder
 		Configuration = $PackageRepositoryConfiguration
-		EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($Id,@($PackageRepositoryConfiguration))
+		EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @($Id,@($PackageRepositoryConfiguration))
 	}
 
 	return $PackageRepository
@@ -218,7 +236,7 @@ function Get-PackageClass {
 			Name = $RepositoryId
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($RepositoryId,@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @($RepositoryId,@($PackageRepositoryConfiguration))
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -226,7 +244,7 @@ function Get-PackageClass {
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
 			Configuration = $PackageClassConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 
 		return @($PackageClass)
@@ -244,7 +262,7 @@ function Get-PackageClass {
 			Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($RepositoryId,@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @($RepositoryId,@($PackageRepositoryConfiguration))
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -252,7 +270,7 @@ function Get-PackageClass {
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
 			Configuration = $PackageClassConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 
 		Write-Output $PackageClass
@@ -338,7 +356,7 @@ function Get-Package {
 			Name = $RepositoryId
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -346,7 +364,7 @@ function Get-Package {
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
 			Configuration = $PackageClassConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 
 		$Package = [Package] @{
@@ -355,7 +373,7 @@ function Get-Package {
 			Repository = $PackageRepository
 			Class = $PackageClass
 			Configuration = $PackageConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/$($PackageFolder.Name)",@($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/$($PackageFolder.Name)",@($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 
 		return @($Package)
@@ -376,7 +394,7 @@ function Get-Package {
 			Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -384,7 +402,7 @@ function Get-Package {
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
 			Configuration = $PackageClassConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 		
 		$Package = [Package] @{
@@ -393,7 +411,7 @@ function Get-Package {
 			Repository = $PackageRepository
 			Class = $PackageClass
 			Configuration = $PackageConfiguration
-			EffectiveConfiguration = New-Object "EffectiveConfigurationContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/$($PackageFolder.Name)",@($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/$($PackageFolder.Name)",@($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration))
 		}
 		
 		Write-Output $Package
@@ -509,7 +527,7 @@ function Initialize-Package {
 
 	if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:CreatePackageConfiguration")) {
 		$packageProps = New-PropertyContainer -Force (Join-Path $Package.Directory.FullName "package.json")
-		
+
 		$packageProps.setProperty("name", $Package.Name)
 		$packageProps.setProperty("version", "0.1.0")
 		$packageProps.setProperty("description", $Package.Name)
