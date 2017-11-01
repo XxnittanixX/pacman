@@ -1,19 +1,20 @@
-Add-Type -Path "$PSScriptRoot\SemanticVersion\XyrusWorx.Management.dll"
+Add-Type -Path "$PSScriptRoot\bin\XyrusWorx.Foundation.dll"
+Add-Type -Path "$PSScriptRoot\bin\XyrusWorx.SemVer.dll"
 
 function Deserialize-Version {
     param([Parameter(ValueFromPipeline = $true, Position = 0)] [string] $VersionString)
 
     if ([string]::IsNullOrWhiteSpace($VersionString)) {
-        return (New-Object XyrusWorx.Management.SemanticVersion)
+        return (New-Object XyrusWorx.SemanticVersion)
     }
 
-	return [XyrusWorx.Management.SemanticVersion]::Parse($VersionString)
+	return [XyrusWorx.SemanticVersion]::Parse($VersionString)
 }
 function Serialize-Version {
-    param([Parameter(ValueFromPipeline = $true)] [XyrusWorx.Management.SemanticVersion] $Version)
+    param([Parameter(ValueFromPipeline = $true)] [XyrusWorx.SemanticVersion] $Version)
 
     if ($Version -eq $null) {
-        return (New-Object XyrusWorx.Management.SemanticVersion)
+        return (New-Object XyrusWorx.SemanticVersion)
     }
 
 	return $Version.ToString()
@@ -28,7 +29,7 @@ function New-Version {
 
     $PreRelease = [string[]] @($PreRelease)
     $Build = [string[]] @($Build)
-    $Version = New-Object XyrusWorx.Management.SemanticVersion -ArgumentList @($Major, $Minor, $Patch)
+    $Version = New-Object XyrusWorx.SemanticVersion -ArgumentList @($Major, $Minor, $Patch)
 
     if ($PreRelease -ne $null -and $PreRelease.Length -gt 0) { $Version = $Version.DeclarePreRelease($PreRelease) }
     if ($Build -ne $null -and $Build.Length -gt 0) { $Version = $Version.WithMetadata($Build) }
@@ -38,8 +39,8 @@ function New-Version {
 function Test-Version {
     param([Parameter(ValueFromPipeline = $true, Position = 0)] [string] $VersionString)
 
-    $result = New-Object XyrusWorx.Management.SemanticVersion
-    if (-not ([XyrusWorx.Management.SemanticVersion]::TryParse($VersionString, [ref] $result))) {
+    $result = New-Object XyrusWorx.SemanticVersion
+    if (-not ([XyrusWorx.SemanticVersion]::TryParse($VersionString, [ref] $result))) {
         return $false
     }
 
@@ -57,7 +58,7 @@ function Update-Version {
         $Version = "0.0.0"
     }
 
-    $VersionObj = [XyrusWorx.Management.SemanticVersion] (Deserialize-Version $Version)
+    $VersionObj = [XyrusWorx.SemanticVersion] (Deserialize-Version $Version)
 
     if ($Major -lt 0) { $Major = $VersionObj.Major }
     if ($Minor -lt 0) { $Minor = $VersionObj.Minor }
@@ -65,7 +66,7 @@ function Update-Version {
 
     $PreRelease = [string]::Join(".",[string[]] @([string]::Join(".", $VersionObj.PreReleaseIdentifiers), [string]::Join(".", @($PreRelease)))).Split(".", [System.StringSplitOptions]::RemoveEmptyEntries)
     $Build = [string]::Join(".",[string[]] @([string]::Join(".", $VersionObj.BuildMetadata), [string]::Join(".", @($Build)))).Split(".", [System.StringSplitOptions]::RemoveEmptyEntries)
-    $VersionObj = New-Object XyrusWorx.Management.SemanticVersion -ArgumentList @($Major, $Minor, $Patch)
+    $VersionObj = New-Object XyrusWorx.SemanticVersion -ArgumentList @($Major, $Minor, $Patch)
 
     if ($PreRelease -ne $null -and $PreRelease.Length -gt 0) { $VersionObj = $VersionObj.DeclarePreRelease($PreRelease) }
     if ($Build -ne $null -and $Build.Length -gt 0) { $VersionObj = $VersionObj.WithMetadata($Build) }
@@ -85,7 +86,7 @@ function Add-Version {
         $Version = "0.0.0"
     }
 
-    $VersionObj = [XyrusWorx.Management.SemanticVersion] (Deserialize-Version $Version)
+    $VersionObj = [XyrusWorx.SemanticVersion] (Deserialize-Version $Version)
 
     if ($MajorStep -lt 0) { $MajorStep = 0 }
     if ($MinorStep -lt 0) { $MinorStep = 0 }
@@ -108,7 +109,7 @@ function Remove-VersionPrerelease {
         $Version = "0.0.0"
     }
 
-    $VersionObj = [XyrusWorx.Management.SemanticVersion] (Deserialize-Version $Version)
+    $VersionObj = [XyrusWorx.SemanticVersion] (Deserialize-Version $Version)
     $VersionObj = $VersionObj.DeclareFinal()
 
     return $VersionObj.ToString()
@@ -120,7 +121,7 @@ function Remove-VersionMetadata {
         $Version = "0.0.0"
     }
 
-    $VersionObj = [XyrusWorx.Management.SemanticVersion] (Deserialize-Version $Version)
+    $VersionObj = [XyrusWorx.SemanticVersion] (Deserialize-Version $Version)
     $VersionObj = $VersionObj.WithoutMetadata()
 
     return $VersionObj.ToString()
