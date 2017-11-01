@@ -34,10 +34,16 @@ function Invoke-Build {
 
         try {
             foreach($ref in $refs) {
-                $build = $ref.EffectiveConfiguration.getObject().Build
+                $build = $ref.EffectiveConfiguration.getChild("pacman").getChild("build").getObject()
     
                 if ($build -eq $null) {
-                    continue
+                    $build = [PSCustomObject] @{}
+                }
+
+                $buildParams = $build.parameters
+
+                if ($buildParams -eq $null) {
+                    $buildParams = @{}
                 }
     
                 if ($build.BeforeBuild -ne $null -and $pscmdlet.ShouldProcess("$($ref.Class)/$ref", "PreBuild")) {
@@ -52,7 +58,7 @@ function Invoke-Build {
                 }
     
                 if ([string]::IsNullOrWhiteSpace($effectiveTarget)) {
-                    $effectiveTarget = "Build"
+                    $effectiveTarget = ""
                 }
     
                 $visited = New-Object "System.Collections.Generic.HashSet[System.String]"
@@ -74,9 +80,18 @@ function Invoke-Build {
                             continue
                         }
     
-                        if ($pscmdlet.ShouldProcess("$($ref.Class)/$ref", "$($effectiveTarget):$($projectFile.Name)")) {
-                            &"$buildEngineLauncher" -Configuration $ref.EffectiveConfiguration.getObject("BuildProperties") -Project $projectFile -Target $effectiveTarget
+                        $targets = $effectiveTarget.Split(@(","), [StringSplitOptions]::RemoveEmptyEntries)
+
+                        foreach($targetItem in $targets) {
+                            if ([string]::IsNullOrWhiteSpace($targetItem)) {
+                                continue
+                            }
+
+                            if ($pscmdlet.ShouldProcess("$($ref.Class)/$ref", "$($targetItem):$($projectFile.Name)")) {
+                                &"$buildEngineLauncher" -Configuration $buildParams -Project $projectFile -Target $targetItem
+                            }
                         }
+                        
                     }
                 }
             
