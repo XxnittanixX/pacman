@@ -2,7 +2,8 @@ function Invoke-Build {
     [CmdLetBinding(SupportsShouldProcess=$true)]
     param(
         [Parameter(Mandatory = $true, ValueFromPipeline = $true, Position = 0)] $Package,
-        [Parameter(Mandatory = $false)] [string] $Target
+        [Parameter(Mandatory = $false)] [string] $Target,
+		[switch] $PassThru
     )
 
     begin {
@@ -102,6 +103,10 @@ function Invoke-Build {
         }
         finally {
             $scriptShell.Close()
+        }
+
+        if ($PassThru) {
+            Write-Output $Package
         }
     }
 }

@@ -1,110 +1,4 @@
-﻿function Join-Object {
-    param(
-        [Parameter(Mandatory = $true, Position = 0)] [object] $Left,
-        [Parameter(Mandatory = $true, Position = 1)] [object] $Right)
-
-    if ($Right -is [System.ValueType] -or $Right -is [System.String] -or $Left -is [System.ValueType] -or $Left -is [System.String]) {
-        return $Right
-    }
-
-    $Result = ([PSCustomObject] $Left)
-    $RightMembers = ([PSCustomObject] $Right) | Get-Member -MemberType NoteProperty
-
-    foreach($currentMember in $RightMembers) {
-        $currentName = $currentMember.Name
-
-        $leftMember = [Microsoft.PowerShell.Commands.MemberDefinition] ($Result | Get-Member -MemberType NoteProperty -Name $currentName | Select-Object -First 1)
-        $rightMember = [Microsoft.PowerShell.Commands.MemberDefinition] $currentMember
-
-        if ($leftMember -eq $null) {
-            $Result | Add-Member -MemberType NoteProperty -Name $rightMember.Name -Value ($Right."$currentName")
-            continue
-        }
-
-        if ($leftMember.MemberType -eq "NoteProperty") {
-            $compositeValue = Join-Object -Left ($Left."$currentName") -Right ($Right."$currentName")
-            $Result | Add-Member -MemberType NoteProperty -Force -Name $leftMember.Name -Value $compositeValue
-        }
-    }
-
-    return $Result
-}
-
-class MergeContainer {
-
-	hidden $_Metadata
-	hidden [Array] $_Containers
-	hidden [MergeContainer] $_Owner
-	hidden [string] $_ChildName
-	
-	MergeContainer ([String] $OwnerId, [Array] $Containers) {
-		$this._Containers = @($Containers)
-		$this._Metadata = @{
-			Package = "$OwnerId"
-		}
-	}
-	hidden MergeContainer ([MergeContainer] $Owner, [string] $ChildName) {
-		if ($Owner -eq $null) {
-            throw("Owner can't be empty")
-        }
-        if ($ChildName -eq $null) {
-            throw("Child name can't be empty")
-        }
-
-		$this._Owner = $Owner
-		$this._ChildName = $ChildName
-		$this._Metadata = $Owner._Metadata
-		$this._Containers = @()
-	}
-	
-	[object] getProperty([string] $Property) {
-		if ([string]::IsNullOrWhiteSpace($Property)) {
-            throw("Property name can't be empty")
-		}
-		
-		if ($this._Owner -ne $null){
-			$obj = [PSCustomObject]($this._Owner.getProperty($this._ChildName))
-		} else {
-			$obj = $this.getObject()
-		}
-
-		return $obj."$Property"
-	}
-	[MergeContainer] getChild([string] $Child){
-        if ([string]::IsNullOrWhiteSpace($Child)) {
-            throw("Child name can't be empty")
-        }
-
-        return [MergeContainer]::new($this, $Child)
-    }
-	[PSCustomObject] getObject() {
-	
-		if ($this._Owner -ne $null){
-			return $this._Owner.getProperty($this._ChildName)
-		} 
-
-		$obj = [PSCustomObject] $this._Metadata
-		
-		for($i = $this._Containers.Length - 1; $i -ge 0 ; $i--) {
-			$obj = Join-Object $obj ($this._Containers[$i].getObject())
-		}
-
-		return $obj
-	}
-
-	[string] getNodePath(){
-        if ($this._Owner -ne $null) {
-            return "$($this._Owner.getNodePath())/$($this._ChildName)"
-        }
-        return [string]::Empty
-    }
-
-	[String] ToString() {
-		return "$(Split-Path -Leaf -Path ($this._Containers[0].getTargetPath())):/$($this.getNodePath().TrimStart("/"))"
-	}
-}
-
-class HierarchyLevel {
+﻿class HierarchyLevel {
 	[ValidateNotNullOrEmpty()] [String]               $Name
 	[ValidateNotNullOrEmpty()] [IO.DirectoryInfo]     $Directory
 	
@@ -143,6 +37,83 @@ class Package : HierarchyLevel {
 	}
 }
 
+####################### Utility functions #######################
+
+function Test-ArbitaryToken { 
+	param([string] $Id, [char[]] $IllegalChars = [IO.Path]::GetInvalidFileNameChars()) 
+	return("$Id".ToCharArray() | Where-Object{(New-Object string @(,$IllegalChars)).Contains("$_")}).Count -eq 0
+}
+
+function Get-PropertyPathTokens {
+	param([string] $PropertyPath)
+
+	if ([string]::IsNullOrWhiteSpace($PropertyPath)) {
+		return @()
+	}
+
+	$chars = "$PropertyPath".Trim(@("/", "`r", "`n", "`t")).ToCharArray()
+	$quote = $false
+	$acc = ""
+
+	$tokens = New-Object "System.Collections.Generic.List[System.String]"
+
+	for($i = 0; $i -lt $chars.Length; $i++){
+		$c = $chars[$i]
+		$cn = [char]0
+		
+		if ($i -lt $chars.Length - 1) {
+			$cn = $chars[$i + 1]
+		}
+
+		if ($c -eq """") {
+			if (($acc.Length -eq 0) -or ([int]$cn -eq 0) -or ($cn -eq "/")) {
+				$quote = -not $quote
+			} 
+            $acc += """" # we carry the quote to the output expression
+		} 
+		elseif ([int]$c -le 32) {
+			if ($quote){
+				$acc += $c
+			}
+			else {
+				continue # white-space outside quote? ignore!
+			}
+		} 
+		elseif ($c -eq "/") {
+			if ($quote){
+				$acc += $c
+			} 
+			else {
+				if (-not [string]::IsNullOrWhiteSpace($acc)) {
+					$tokens.Add($acc)
+					$acc = ""
+				}
+			}
+		}
+		else {
+			$acc += $c
+		}
+	}
+
+    if (-not [string]::IsNullOrWhiteSpace($acc)) {
+		$tokens.Add($acc)
+	}
+
+	return @($tokens)
+}
+
+####################### External functions ######################
+
+function Get-PackageConfiguration {
+	param(
+		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] [HierarchyLevel] $Node
+	)
+	
+	process {
+		Write-Output $Node.EffectiveConfiguration.getObject()
+	}
+}
+
 function Get-PackageRepository {
 	param(
 		[Parameter(Mandatory = $false, Position = 0)] [string] $Id
@@ -170,15 +141,10 @@ function Get-PackageRepository {
 		Name = $Id
 		Directory = $PackageRepositoryFolder
 		Configuration = $PackageRepositoryConfiguration
-		EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @($Id,@($PackageRepositoryConfiguration))
+		EffectiveConfiguration = New-MergeContainer @($PackageRepositoryConfiguration) -PackageId $Id
 	}
 
 	return $PackageRepository
-}
-
-function Test-Validity { 
-	param([string] $Id, [char[]] $IllegalChars = [IO.Path]::GetInvalidFileNameChars()) 
-	return("$Id".ToCharArray()|Where-Object{(New-Object string @(,$IllegalChars)).Contains("$_")}).Count -eq 0
 }
 
 function Get-PackageClass {
@@ -222,7 +188,7 @@ function Get-PackageClass {
 	}
 
 	if ($Candidates.Length -eq 0) {
-		if (-not (Test-Validity -Id $Filter -IllegalChars @("*", "?"))) {
+		if (-not (Test-ArbitaryToken -Id $Filter -IllegalChars @("*", "?"))) {
 			return
 		}
 
@@ -236,7 +202,7 @@ function Get-PackageClass {
 			Name = $RepositoryId
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @($RepositoryId,@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-MergeContainer @($PackageRepositoryConfiguration) -PackageId $RepositoryId
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -244,7 +210,7 @@ function Get-PackageClass {
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
 			Configuration = $PackageClassConfiguration
-			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-MergeContainer @($PackageClassConfiguration, $PackageRepositoryConfiguration) -PackageId "$Prefix$($PackageClassFolder.Name)/*"
 		}
 
 		return @($PackageClass)
@@ -262,7 +228,7 @@ function Get-PackageClass {
 			Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @($RepositoryId,@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-MergeContainer @($PackageRepositoryConfiguration) -PackageId $RepositoryId
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -270,7 +236,7 @@ function Get-PackageClass {
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
 			Configuration = $PackageClassConfiguration
-			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-MergeContainer @($PackageClassConfiguration, $PackageRepositoryConfiguration) -PackageId "$Prefix$($PackageClassFolder.Name)/*"
 		}
 
 		Write-Output $PackageClass
@@ -339,7 +305,7 @@ function Get-Package {
 	}
 
 	if ($Candidates.Length -eq 0) {
-		if (-not (Test-Validity -Id "$Class\$Name" -IllegalChars @("*", "?"))) {
+		if (-not (Test-ArbitaryToken -Id "$Class\$Name" -IllegalChars @("*", "?"))) {
 			return
 		}
 
@@ -356,7 +322,7 @@ function Get-Package {
 			Name = $RepositoryId
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-MergeContainer @($PackageRepositoryConfiguration) -PackageId $RepositoryId
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -364,7 +330,7 @@ function Get-Package {
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
 			Configuration = $PackageClassConfiguration
-			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-MergeContainer @($PackageClassConfiguration, $PackageRepositoryConfiguration) -PackageId "$Prefix$($PackageClassFolder.Name)/*"
 		}
 
 		$Package = [Package] @{
@@ -373,7 +339,7 @@ function Get-Package {
 			Repository = $PackageRepository
 			Class = $PackageClass
 			Configuration = $PackageConfiguration
-			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/$($PackageFolder.Name)",@($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-MergeContainer @($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration) -PackageId "$Prefix$($PackageClassFolder.Name)/$($PackageFolder.Name)"
 		}
 
 		return @($Package)
@@ -394,7 +360,7 @@ function Get-Package {
 			Name = "$($PackageRepositoryFolder.Parent.Name)$Suffix"
 			Directory = $PackageRepositoryFolder
 			Configuration = $PackageRepositoryConfiguration
-			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @($Prefix.TrimEnd(":"),@($PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-MergeContainer @($PackageRepositoryConfiguration) -PackageId $Prefix.TrimEnd(":")
 		}
 		
 		$PackageClass = [PackageClass] @{
@@ -402,7 +368,7 @@ function Get-Package {
 			Directory = $PackageClassFolder
 			Repository = $PackageRepository
 			Configuration = $PackageClassConfiguration
-			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/*",@($PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-MergeContainer @($PackageClassConfiguration, $PackageRepositoryConfiguration) -PackageId "$Prefix$($PackageClassFolder.Name)/*"
 		}
 		
 		$Package = [Package] @{
@@ -411,52 +377,48 @@ function Get-Package {
 			Repository = $PackageRepository
 			Class = $PackageClass
 			Configuration = $PackageConfiguration
-			EffectiveConfiguration = New-Object "MergeContainer" -ArgumentList @("$Prefix$($PackageClassFolder.Name)/$($PackageFolder.Name)",@($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration))
+			EffectiveConfiguration = New-MergeContainer @($PackageConfiguration, $PackageClassConfiguration, $PackageRepositoryConfiguration) -PackageId "$Prefix$($PackageClassFolder.Name)/$($PackageFolder.Name)"
 		}
 		
 		Write-Output $Package
 	}
 }
 
-function Get-PackageProperty {
+function Get-RepositoryItem {
 	param(
-		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] [HierarchyLevel] $Node,
-		[Parameter(Mandatory = $true, Position = 0)] [string] $Property,
-		[Parameter(Mandatory = $false)] [string] $Group = $null
+		[Parameter(Mandatory = $false, Position = 0)] [string] $Filter 
 	)
-	
-	process {
-		Write-Output $Node.EffectiveConfiguration.getProperty($Group, $Property)
-	}
-}
 
-function Get-PackageConfiguration {
-	param(
-		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] [HierarchyLevel] $Node,
-		[Parameter(Mandatory = $false)] [string] $Group = $null
-	)
-	
-	process {
-		if ($Group -eq $null) {
-			Write-Output $Node.EffectiveConfiguration.getObject()
-		} 
-		else {
-			Write-Output $Node.EffectiveConfiguration.getObject($Group)
-		}
+	if ([string]::IsNullOrWhiteSpace($Filter)) {
+		return Get-PackageRepository
 	}
-}
 
-function Set-PackageProperty {
-	param(
-		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] [HierarchyLevel] $Node,
-		[Parameter(Mandatory = $true, Position = 0)] [string] $Property,
-		[Parameter(Mandatory = $false, Position = 1)] [string] $Value,
-		[Parameter(Mandatory = $false)] [string] $Group = $null
-	)
-	
-	process {
-		$Node.Configuration.setProperty($Group, $Property, $Value)
+	if ($Filter.Trim() -eq ":" -or $Filter.Trim() -eq "/") {
+		return @()
 	}
+
+	if ($Filter.Trim().EndsWith(":")) { # e.g. "src:"
+		return Get-PackageRepository -Id $Filter.Trim().TrimEnd(":")
+	}
+
+	if ($Filter.Trim().StartsWith("/")) { # e.g. "/app"
+		return Get-Package -Filter "*/$($Filter.Trim().TrimStart("/"))"
+	}
+
+	if ($Filter.Trim().EndsWith("/")) { # e.g. "app/"
+		return Get-PackageClass -Filter "$($Filter.Trim().TrimEnd("/"))/*"
+	}
+
+	if ($Filter.Contains("/")) { # e.g. "app/package"
+		return Get-Package -Filter $Filter
+	}
+
+	if ($Filter.Contains(":")) { # e.g. "src:app"
+		return Get-PackageClass -Filter $Filter
+	}
+
+	# rest, e.g. "app"
+	return Get-PackageClass -Filter $Filter 
 }
 
 function Initialize-Package {
@@ -468,104 +430,218 @@ function Initialize-Package {
 		[switch] $Force
 	)
 
-	if ($Package -eq $null) {
-		Write-Error "The package provided is not refering to a valid package directory."
-		Return
-	}
-
-	$defaultTemplate = $Package.Class.EffectiveConfiguration.getProperty("DefaultTemplate")
-
-	if ([string]::IsNullOrWhiteSpace($Template)) {
-		$Template = $defaultTemplate
-	}
-
-	$templateSearchPaths = @(
-		"templates",
-		"tools\pacman\templates"
-	)
-	$templateExtensions = @(
-		"template",
-		"zip"
-	)
-
-	$foundTemplateFile = $null
-
-	if(-not [string]::IsNullOrWhiteSpace($Template)){
-		foreach($templateSearchPath in $templateSearchPaths) {
-			foreach($templateExtension in $templateExtensions) { 
-				
-				$templateFile = Join-Path $global:System.RootDirectory "$templateSearchPath\$Template.$templateExtension"
-				$templateDir = Join-Path $global:System.RootDirectory "$templateSearchPath\$Template"
-
-				if (Test-Path $templateDir -PathType Container) {
-					$foundTemplateFile = $templateDir
-					break
-				}
-
-				if (Test-Path $templateFile -PathType Leaf) {
-					$foundTemplateFile = $templateFile
-					break
-				}
-			}
-			
-			if ($foundTemplateFile -ne $null) {
-				break
-			}
-		}
-
-		if ($foundTemplateFile -eq $null) {
-			Write-Error "Unable to find template ""$Template""."
+	process {
+		if ($Package -eq $null) {
 			return
 		}
-	}
 
-	if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:CreateDirectory")) {
-		$null = $Package.Directory.Create()
-	}
+		if (-not [string]::Equals($Package.GetType().BaseType.Name, "HierarchyLevel")) {
+            Write-Error "Can't initialize ""$Package"": not a valid package reference"
+            Return
+        }
 
-	$preExistingFiles = @(Get-ChildItem $Package.Directory.FullName -File -Recurse).Length -gt 0
-
-	if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:CreatePackageConfiguration")) {
-		$packageProps = New-PropertyContainer -Force (Join-Path $Package.Directory.FullName "package.json")
-
-		$packageProps.setProperty("name", $Package.Name)
-		$packageProps.setProperty("version", "0.1.0")
-		$packageProps.setProperty("description", $Package.Name)
-	}
-
-	if ($foundTemplateFile -ne $null) {
-
-		if (-not $Force -and $preExistingFiles) {
-			Write-Error "The package directory ""$($Package.Directory.FullName)"" is not empty. If you wish to apply the template anyway, add the switch ""Force""."
-			Return
+		$defaultTemplate = $Package.Class.EffectiveConfiguration.getProperty("DefaultTemplate")
+		
+		if ([string]::IsNullOrWhiteSpace($Template)) {
+			$Template = $defaultTemplate
+		}
+	
+		$templateSearchPaths = @(
+			"templates",
+			"tools\pacman\templates"
+		)
+		$templateExtensions = @(
+			"template",
+			"zip"
+		)
+	
+		$foundTemplateFile = $null
+	
+		if(-not [string]::IsNullOrWhiteSpace($Template)){
+			foreach($templateSearchPath in $templateSearchPaths) {
+				foreach($templateExtension in $templateExtensions) { 
+					
+					$templateFile = Join-Path $global:System.RootDirectory "$templateSearchPath\$Template.$templateExtension"
+					$templateDir = Join-Path $global:System.RootDirectory "$templateSearchPath\$Template"
+	
+					if (Test-Path $templateDir -PathType Container) {
+						$foundTemplateFile = $templateDir
+						break
+					}
+	
+					if (Test-Path $templateFile -PathType Leaf) {
+						$foundTemplateFile = $templateFile
+						break
+					}
+				}
+				
+				if ($foundTemplateFile -ne $null) {
+					break
+				}
+			}
+	
+			if ($foundTemplateFile -eq $null) {
+				Write-Error "Unable to find template ""$Template""."
+				return
+			}
 		}
 
-		if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:ExpandTemplate(""$foundTemplateFile"")")) {
-			Expand-TemplatePackage -TemplateFile $foundTemplateFile -Destination $Package.Directory.FullName -Force:$Overwrite -Context $Package -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
+		if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:CreateDirectory")) {
+			$null = $Package.Directory.Create()
 		}
+
+		if ($Package.Directory.Exists) {
+			$preExistingFiles = @(Get-ChildItem $Package.Directory.FullName -File -Recurse).Length -gt 0
+		}
+		else {
+			$preExistingFiles = @()
+		}
+	
+		if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:CreatePackageConfiguration")) {
+			$packageProps = New-PropertyContainer -Force (Join-Path $Package.Directory.FullName "package.json")
+	
+			$packageProps.setProperty("name", $Package.Name)
+			$packageProps.setProperty("version", "0.1.0")
+			$packageProps.setProperty("description", $Package.Name)
+		}
+	
+		if ($foundTemplateFile -ne $null) {
+	
+			if (-not $Force -and $preExistingFiles) {
+				Write-Error "The package directory ""$($Package.Directory.FullName)"" is not empty. If you wish to apply the template anyway, add the switch ""Force""."
+				Return
+			}
+	
+			if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:ExpandTemplate(""$foundTemplateFile"")")) {
+				Expand-TemplatePackage -TemplateFile $foundTemplateFile -Destination $Package.Directory.FullName -Force:$Overwrite -Context $Package -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
+			}
+		}
+
+		Write-Output $Package
 	}
 }
 
-Set-Alias "pkg" "Get-Package"
+function Get-PackageProperty {
+	param(
+		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] [HierarchyLevel] $Package,
+		[Parameter(Mandatory = $true, Position = 0)] [string] $Property
+	)
+	
+	process {
+		if ($Package -eq $null) {
+			Return
+		}
+
+		if (-not [string]::Equals($Package.GetType().BaseType.Name, "HierarchyLevel")) {
+            Write-Error "Can't read ""$Package"": not a valid package reference"
+            Return
+		}
+		
+		$tokens = Get-PropertyPathTokens -PropertyPath $Property
+		
+		if ($tokens -eq $null -or $tokens.Length -eq 0) {
+			Return
+		}
+	
+		Write-Verbose "Tokenizer result: $($tokens -join " -> ")"
+
+		try {
+			$propScript = [ScriptBlock]::Create("`$_.$(@($tokens) -join ".")")
+		} 
+		catch {
+			Write-Error "Invalid property path: $PropertyPath"
+			Return
+		}
+
+		$Package.EffectiveConfiguration.getObject() | Foreach-Object -Process $propScript | Write-Output
+	}
+}
+
+function Set-PackageProperty {
+	[CmdLetBinding(SupportsShouldProcess=$true)]
+	param(
+		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] $Package,
+		[Parameter(Mandatory = $true, Position = 0)] [string] $Property,
+		[Parameter(Mandatory = $false, Position = 1)] [string] $Value
+	)
+	
+	process {
+		if ($Package -eq $null) {
+			Return
+		}
+
+		if (-not [string]::Equals($Package.GetType().BaseType.Name, "HierarchyLevel")) {
+            Write-Error "Can't update ""$Package"": not a valid package reference"
+            Return
+		}
+		
+		if (-not $Package.Directory.Exists) {
+			if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Config:InitPackage")) {
+				if ($Package -is [Package]){
+					$null = $Package | init
+				}
+				else {
+					$null = New-Item -ItemType Directory -Path $Package.Directory.FullName
+				}
+			}
+		}
+
+		$tokens = @(Get-PropertyPathTokens -PropertyPath $Property)
+
+		if ($tokens -eq $null -or $tokens.Length -eq 0) {
+			Return
+		}
+
+		$head = @($tokens | Select-Object -SkipLast 1)
+		$tail = $tokens | Select-Object -Last 1
+		$node = $Package.Configuration
+
+		if ($tail -eq $null) {
+			Return
+		}
+
+		Write-Verbose "Tokenizer result: $($tokens -join " -> ")"
+
+		foreach($token in $head) {
+			$node = $node.getChild($token)
+		}
+
+		if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Config:WriteValue")) {
+			$node.setProperty($tail, $Value)
+		}
+		
+		Write-Output $Package
+	}
+}
+
+####################### Aliases / Exports ######################
+
+Set-Alias "pkg"  "Get-RepositoryItem"
+Set-Alias "ppkg" "Get-Package"
 Set-Alias "pcls" "Get-PackageClass"
 Set-Alias "repo" "Get-PackageRepository"
-Set-Alias "prop" "Get-PackageProperty"
-Set-Alias "props" "Get-PackageConfiguration"
+Set-Alias "pcfg" "Get-PackageConfiguration"
+Set-Alias "pget" "Get-PackageProperty"
+Set-Alias "pset" "Set-PackageProperty"
 Set-Alias "init" "Initialize-Package"
 
 Export-ModuleMember -Function @(
 	"Get-Package",
 	"Get-PackageClass",
 	"Get-PackageRepository",
+	"Get-RepositoryItem",
 	"Get-PackageProperty",
 	"Get-PackageConfiguration",
 	"Set-PackageProperty",
 	"Initialize-Package"
 ) -Alias @(
 	"pkg",
+	"ppkg",
 	"pcls",
 	"repo",
 	"prop",
-	"props",
-	"init"
+	"pcfg",
+	"init",
+	"pget",
+	"pset"
 )
