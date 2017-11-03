@@ -426,6 +426,7 @@ function Initialize-Package {
 	param(
 		[Parameter(ValueFromPipeline = $true, Mandatory = $true)] [Package] $Package,
 		[Parameter(Position = 0, Mandatory = $false)] [string] $Template,
+		[Parameter(Mandatory = $false)] [System.Collections.Hashtable] $Properties = $null,
 		[switch] $Overwrite,
 		[switch] $Force
 	)
@@ -460,7 +461,7 @@ function Initialize-Package {
 		if(-not [string]::IsNullOrWhiteSpace($Template)){
 			foreach($templateSearchPath in $templateSearchPaths) {
 				foreach($templateExtension in $templateExtensions) { 
-					
+
 					$templateFile = Join-Path $global:System.RootDirectory "$templateSearchPath\$Template.$templateExtension"
 					$templateDir = Join-Path $global:System.RootDirectory "$templateSearchPath\$Template"
 	
@@ -513,7 +514,17 @@ function Initialize-Package {
 			}
 	
 			if ($pscmdlet.ShouldProcess("$($Package.Class)/$Package", "Init:ExpandTemplate(""$foundTemplateFile"")")) {
-				Expand-TemplatePackage -TemplateFile $foundTemplateFile -Destination $Package.Directory.FullName -Force:$Overwrite -Context $Package -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
+				$templateContext = @{
+					"Package" = $Package
+					"Properties" = [PSCustomObject] $Properties
+					"Metadata" = (New-PropertyContainer (Join-Path $Package.Directory.FullName "package.json"))
+				}
+	
+				if ($templateContext.Properties -eq $null) {
+					$templateContext.Properties = @{ }
+				}
+
+				Expand-TemplatePackage -TemplateFile $foundTemplateFile -Destination $Package.Directory.FullName -Force:$Overwrite -Context $templateContext -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
 			}
 		}
 

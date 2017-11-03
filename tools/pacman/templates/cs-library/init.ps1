@@ -1,9 +1,9 @@
 Move-Item `
-    -Path        (join-path $_.Directory.FullName "project.csproj") `
-    -Destination (join-path $_.Directory.FullName "$($_.Directory.Name).csproj") 
+    -Path        (join-path $_.Package.Directory.FullName "project.csproj") `
+    -Destination (join-path $_.Package.Directory.FullName "$($_.Metadata.getProperty("name")).csproj") 
 
-$properties = New-PropertyContainer (Join-Path $_.Directory.FullName "package.json")
-$properties.setProperty("pacman", @{
+$projectProperties = New-PropertyContainer (Join-Path $_.Package.Directory.FullName "package.json")
+$projectProperties.setProperty("pacman", @{
     "build" = @{
         "projects" = "*.csproj"
         "target" = "Restore,Pack"

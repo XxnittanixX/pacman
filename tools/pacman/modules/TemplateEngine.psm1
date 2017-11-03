@@ -26,6 +26,14 @@ function Expand-TemplatePackage {
     else {
         throw("Template file ""$TemplateFile"" not found.")
     }
+
+    [IO.FileInfo] $prepareScript = Join-Path $ContentPath "prepare.ps1"
+    [IO.FileInfo] $initScript = Join-Path $ContentPath "init.ps1"
+    [IO.FileInfo] $updateScript = Join-Path $ContentPath "update.ps1"
+
+    if ($prepareScript.Exists) {
+        Get-Content -Raw -Path $prepareScript.FullName | Invoke-Isolated -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
+    }
     
     foreach($item in @(Get-ChildItem -Path $ContentPath -Recurse -Filter "*.pp" -File)) {
         
@@ -47,9 +55,6 @@ function Expand-TemplatePackage {
         $preExistingFiles = @()
     }
 
-    [IO.FileInfo] $initScript = Join-Path $ContentPath "init.ps1"
-    [IO.FileInfo] $updateScript = Join-Path $ContentPath "update.ps1"
-
     Get-ChildItem -Path $ContentPath | Copy-Item -Recurse -Destination $Destination -Exclude $preExistingFiles
 
     if ($initScript.Exists) {
@@ -64,6 +69,10 @@ function Expand-TemplatePackage {
             Get-Content -Raw -Path $updateScript.FullName | Invoke-Isolated -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
         }
         Remove-Item -Force -Path (Join-Path $Destination $updateScript.Name)
+    }
+
+    if ($prepareScript.Exists) {
+        Remove-Item -Force -Path (Join-Path $Destination $prepareScript.Name)
     }
 
     Remove-Item -Path $ContentPath -Recurse -Force
