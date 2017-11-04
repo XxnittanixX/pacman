@@ -250,11 +250,5 @@ paket-files/
 # JetBrains Rider
 .idea/
 *.sln.iml
-/work/Assemblies/*
-/work/Output
 Thumbs.db
 launchSettings.json
-/out
-/tools/cake/tools
-/src/app/*/Output
-/src/workbench/STP.Export.Cli.TestPlugin/Output

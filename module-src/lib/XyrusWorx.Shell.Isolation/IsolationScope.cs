@@ -5,7 +5,7 @@ using System.Management.Automation.Host;
 using System.Management.Automation.Runspaces;
 using JetBrains.Annotations;
 
-namespace XyrusWorx.Shell.Isolation {
+namespace XyrusWorx {
 	[PublicAPI]
 	public class IsolationScope
 	{

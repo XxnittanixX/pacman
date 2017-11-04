@@ -1,5 +1,5 @@
 Add-Type -Path "$PSScriptRoot\bin\XyrusWorx.Foundation.dll"
-Add-Type -Path "$PSScriptRoot\bin\XyrusWorx.SemVer.dll"
+Add-Type -Path "$PSScriptRoot\bin\XyrusWorx.Shell.Versioning.dll"
 
 function Deserialize-Version {
     param([Parameter(ValueFromPipeline = $true, Position = 0)] [string] $VersionString)

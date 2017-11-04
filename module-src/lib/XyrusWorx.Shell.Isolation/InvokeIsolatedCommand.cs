@@ -2,7 +2,7 @@
 using System.Management.Automation.Runspaces;
 using JetBrains.Annotations;
 
-namespace XyrusWorx.Shell.Isolation {
+namespace XyrusWorx {
 	[PublicAPI]
 	[Cmdlet(VerbsLifecycle.Invoke, "Isolated")]
 	public class InvokeIsolatedCommand : Cmdlet

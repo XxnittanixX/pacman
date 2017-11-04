@@ -1,7 +1,7 @@
 ﻿using System.Management.Automation;
 using JetBrains.Annotations;
 
-namespace XyrusWorx.Shell.Isolation {
+namespace XyrusWorx {
 	[PublicAPI]
 	[Cmdlet(VerbsCommon.Close, "IsolationScope")]
 	public class CloseIsolationScopeCommand : Cmdlet

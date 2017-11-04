@@ -1,0 +1,14 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<Target Name="CopyFilesToModuleDirectory" AfterTargets="Rebuild;Build">
+		<PropertyGroup>
+			<BinOutputDir>$(OutDir)</BinOutputDir>
+			<ModuleDir>$(MSBuildProjectDirectory)\..\..\..\tools\pacman\modules\bin\</ModuleDir>
+		</PropertyGroup>
+		
+		<ItemGroup>
+			<BinFile Include="$(BinOutputDir)*.dll" />
+		</ItemGroup>
+		
+		<Copy SourceFiles="@(BinFile)" DestinationFolder="$(ModuleDir)" Condition="'$(Configuration)' == 'Release'" />
+	</Target>
+</Project>
