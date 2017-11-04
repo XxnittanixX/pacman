@@ -1,0 +1,43 @@
+﻿<Project Sdk="Microsoft.NET.Sdk" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
+    <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
+    <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
+    <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+    <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+    <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+    <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AssemblyName>XyrusWorx.Shell.Isolation</AssemblyName>
+    <AssemblyTitle>Powershell Isolation Module</AssemblyTitle>
+    <Description>This package contains a module assembly which allows a powershell user to execute scripts in a separate shell environment.</Description>
+    <TargetFrameworks>net462</TargetFrameworks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="**\*.cs" Exclude="obj/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="JetBrains.Annotations">
+      <Version>11.0.0</Version>
+    </PackageReference>
+    <PackageReference Include="Microsoft.PowerShell.5.ReferenceAssemblies">
+      <Version>1.1.0</Version>
+    </PackageReference>
+    <PackageReference Include="System.ValueTuple">
+      <Version>4.4.0</Version>
+    </PackageReference>
+    <PackageReference Include="XyrusWorx.Foundation">
+      <Version>3.0.0</Version>
+    </PackageReference>
+  </ItemGroup>
+  <PropertyGroup Label="Configuration">
+    <RootNamespace>XyrusWorx.Shell.Isolation</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <DefineConstants>$(DefineConstants);RELEASE</DefineConstants>
+  </PropertyGroup>
+</Project>

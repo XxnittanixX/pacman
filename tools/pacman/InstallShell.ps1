@@ -50,7 +50,7 @@ try {
     )
 
     $excludedFiles = @(
-        @("README.md", "LICENSE", ".git*") | Foreach-Object { Get-ChildItem -Path (Join-Path $TempDirectory.FullName "pacman-$Branch") -Filter $_ }
+        @("README.md", "LICENSE", ".git*", "module-src") | Foreach-Object { Get-ChildItem -Path (Join-Path $TempDirectory.FullName "pacman-$Branch") -Filter $_ }
     )
     
     Get-ChildItem -Path (Join-Path $TempDirectory.FullName "pacman-$Branch") -Exclude $excludedFiles | `

@@ -27,67 +27,82 @@ function Expand-TemplatePackage {
         throw("Template file ""$TemplateFile"" not found.")
     }
 
-    [IO.FileInfo] $prepareScript = Join-Path $ContentPath "prepare.ps1"
-    [IO.FileInfo] $initScript = Join-Path $ContentPath "init.ps1"
-    [IO.FileInfo] $updateScript = Join-Path $ContentPath "update.ps1"
-
-    if ($prepareScript.Exists) {
-        Get-Content -Raw -Path $prepareScript.FullName | Invoke-Isolated -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
-    }
-    
-    foreach($item in @(Get-ChildItem -Path $ContentPath -Recurse -Filter "*.pp" -File)) {
+    try {
+        $scope = Open-IsolationScope
         
-        [IO.File]::WriteAllText(
-            (Join-Path $item.DirectoryName $item.BaseName), 
-            (Get-Content -Raw -Path $item.FullName | Expand-Template -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")))
-
-        Remove-Item -Path $item.FullName -Force
-    }
-
-    if (-not (Test-Path -Path $Destination -PathType Container)) {
-        $null = New-Item -Path $Destination -ItemType Directory
-    }
-
-    if (-not $Force) {
-        $preExistingFiles = @(Get-ChildItem -Path $Destination -Recurse -File | Where-Object { $_.FullName -ne (Join-Path $_.DirectoryName "package.json") })
-    }
-    else {
-        $preExistingFiles = @()
-    }
-
-    Get-ChildItem -Path $ContentPath | Copy-Item -Recurse -Destination $Destination -Exclude $preExistingFiles
-
-    if ($initScript.Exists) {
-        if ($preExistingFiles.Count -eq 0) {
-            Get-Content -Raw -Path $initScript.FullName | Invoke-Isolated -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
-        }
-        Remove-Item -Force -Path (Join-Path $Destination $initScript.Name)
-    }
+        [IO.FileInfo] $prepareScript = Join-Path $ContentPath "prepare.ps1"
+        [IO.FileInfo] $initScript = Join-Path $ContentPath "init.ps1"
+        [IO.FileInfo] $updateScript = Join-Path $ContentPath "update.ps1"
     
-    if ($updateScript.Exists) {
-        if ($preExistingFiles.Count -gt 0) {
-            Get-Content -Raw -Path $updateScript.FullName | Invoke-Isolated -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
+        if ($prepareScript.Exists) {
+            Get-Content -Raw -Path $prepareScript.FullName | Invoke-Isolated -Scope $scope -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
         }
-        Remove-Item -Force -Path (Join-Path $Destination $updateScript.Name)
+        
+        foreach($item in @(Get-ChildItem -Path $ContentPath -Recurse -Filter "*.pp" -File)) {
+            
+            [IO.File]::WriteAllText(
+                (Join-Path $item.DirectoryName $item.BaseName), 
+                (Get-Content -Raw -Path $item.FullName | Expand-Template -Scope $scope -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")))
+    
+            Remove-Item -Path $item.FullName -Force
+        }
+    
+        if (-not (Test-Path -Path $Destination -PathType Container)) {
+            $null = New-Item -Path $Destination -ItemType Directory
+        }
+    
+        if (-not $Force) {
+            $preExistingFiles = @(Get-ChildItem -Path $Destination -Recurse -File | Where-Object { $_.FullName -ne (Join-Path $_.DirectoryName "package.json") })
+        }
+        else {
+            $preExistingFiles = @()
+        }
+    
+        Get-ChildItem -Path $ContentPath | Copy-Item -Recurse -Destination $Destination -Exclude $preExistingFiles
+    
+        if ($initScript.Exists) {
+            if ($preExistingFiles.Count -eq 0) {
+                Get-Content -Raw -Path $initScript.FullName | Invoke-Isolated -Scope $scope -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
+            }
+            Remove-Item -Force -Path (Join-Path $Destination $initScript.Name)
+        }
+        
+        if ($updateScript.Exists) {
+            if ($preExistingFiles.Count -gt 0) {
+                Get-Content -Raw -Path $updateScript.FullName | Invoke-Isolated -Scope $scope -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
+            }
+            Remove-Item -Force -Path (Join-Path $Destination $updateScript.Name)
+        }
+    
+        if ($prepareScript.Exists) {
+            Remove-Item -Force -Path (Join-Path $Destination $prepareScript.Name)
+        }
+    
+        Remove-Item -Path $ContentPath -Recurse -Force
     }
-
-    if ($prepareScript.Exists) {
-        Remove-Item -Force -Path (Join-Path $Destination $prepareScript.Name)
+    finally {
+        Close-IsolationScope $Scope
     }
-
-    Remove-Item -Path $ContentPath -Recurse -Force
 }
 function Expand-Template {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true, ValueFromPipeline = $true)] [string] $Template,
-        [Parameter(Mandatory = $false)] $Context
+        [Parameter(Mandatory = $false)] $Context,
+        [Parameter(Mandatory = $false)] $Scope = $null
     )
 
     $beginTag = [regex]::Escape("[[")
     $endTag = [regex]::Escape("]]")
 
-    $shell = New-Shell
+    if ($Scope -eq $null) {
+        $ownScope = $true
+        $Scope = Open-IsolationScope
+    }
+    else {
+        $ownScope = $false
+    }
+    
     $inputString = $Template
     $outputStringBuilder = New-Object "System.Text.StringBuilder"
 
@@ -105,10 +120,8 @@ function Expand-Template {
             $expression = $matches.exp
 
             Write-Verbose "Processing expression: $expression"
-            # TODO GK: Executing isolated commands seems to get stuck when WinRM is disabled. There should
-            # be a check whether this is the case and possibly a warning.
-            #$result = (Invoke-Isolated -Shell $shell -Command $expression -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue") | Out-String).TrimEnd()
-            $result = ($context | Invoke-Command -Command ([ScriptBlock]::Create("Foreach-Object { $expression }")) | Out-String).TrimEnd()
+
+            $result = (Invoke-Isolated -Scope $scope -Command $expression -Context $Context -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue") | Out-String).TrimEnd()
            
             Write-Verbose "Expression processor result: $result"
             $null = $outputStringBuilder.Append($result)
@@ -118,7 +131,9 @@ function Expand-Template {
         return $outputStringBuilder.ToString()
     }
     finally {
-        $shell.Close()
+        if ($ownScope) {
+            Close-IsolationScope $scope
+        }
     }
 }
 

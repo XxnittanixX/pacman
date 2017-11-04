@@ -31,7 +31,7 @@ function Invoke-Build {
         }
 
         $refs = $Package.getPackages()
-        $scriptShell = New-Shell
+        $scope = Open-IsolationScope
 
         try {
             foreach($ref in $refs) {
@@ -48,7 +48,7 @@ function Invoke-Build {
                 }
     
                 if ($build.BeforeBuild -ne $null -and $pscmdlet.ShouldProcess("$($ref.Class)/$ref", "PreBuild")) {
-                    Invoke-Isolated -Context $ref -Command $build.BeforeBuild -Shell $scriptShell -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
+                    Invoke-Isolated -Context $ref -Command $build.BeforeBuild -Scope $scope -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
                 }
     
                 $projectFilters = "$($build.Projects)".Split(@(";"), [StringSplitOptions]::RemoveEmptyEntries)
@@ -97,12 +97,12 @@ function Invoke-Build {
                 }
             
                 if ($build.AfterBuild -ne $null -and $pscmdlet.ShouldProcess("$($ref.Class)/$ref", "PostBuild")) {
-                    Invoke-Isolated -Context $ref -Shell $scriptShell -Command $build.AfterBuild -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
+                    Invoke-Isolated -Context $ref -Scope $scope -Command $build.AfterBuild -InformationAction "$InformationPreference" -Verbose:($VerbosePreference -ne "SilentlyContinue")
                 }
             }
         }
         finally {
-            $scriptShell.Close()
+            Close-IsolationScope $scope
         }
 
         if ($PassThru) {
