@@ -31,23 +31,26 @@ class ModuleContainer {
 		$this._Modules = New-Object System.Collections.Generic.HashSet[System.String]
 	}
 
-	[bool] load($Name) {
+	[bool] load($Name, $ModulePath) {
 	
 		if ([string]::IsNullOrWhiteSpace($Name)) {
 			return $false
 		}
 		
-		$fullPath = Join-Path $PSScriptRoot "modules\$Name.psm1"
+		if ([string]::IsNullOrWhiteSpace($ModulePath)) {
+			return $false
+		}
+		
 		Write-Host -NoNewLine "Loading module ""$Name""..."
 		
 		try {
 			$ErrorActionPreference = "Stop"
 		
-			if (-not (Test-Path -PathType Leaf -Path $fullPath)) {
+			if (-not (Test-Path -PathType Leaf -Path $ModulePath)) {
 				throw "The module is not installed."
 			}
 			
-			Import-Module "$fullPath"
+			Import-Module "$ModulePath"
 		} 
 		catch {
 			Write-Host -ForegroundColor Red "FAILED: $($_.Exception.Message)"
@@ -78,7 +81,12 @@ function Initialize-Shell {
 	$ErrorActionPreference = "Continue"
 	write-host ""
 	
-	$classes = Get-ChildItem -filter "*.psm1" -path "$PSScriptRoot\modules"
+	$classPaths = @(
+		(Join-Path $PSScriptRoot   modules),
+		(Join-Path $RepositoryRoot modules)
+	)
+	
+	$classes = @($classPaths | %{ Get-ChildItem -filter "*.psm1" -path $_ })
 	$success = $true
 	
 	$global:System.Modules = New-Object ModuleContainer
@@ -111,7 +119,7 @@ function Initialize-Shell {
 
 		foreach($class in $classes) 
 		{
-			$success = $success -and ($global:System.Modules.load($class.BaseName))
+			$success = $success -and ($global:System.Modules.load($class.BaseName, $class.FullName))
 		}
 	}
 	
