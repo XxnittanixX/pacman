@@ -87,7 +87,7 @@ function Initialize-Shell {
 		(Join-Path $RepositoryRoot modules)
 	)
 	
-	$classes = @($classPaths | %{ Get-ChildItem -filter "*.psm1" -path $_ })
+	$classes = @($classPaths | ? { Test-Path $_ -PathType Container } | %{ Get-ChildItem -filter "*.psm1" -path $_ })
 	$success = $true
 	
 	$global:System.Modules = New-Object ModuleContainer
