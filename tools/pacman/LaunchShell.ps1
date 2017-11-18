@@ -1,7 +1,8 @@
 param(
 	[Parameter(Mandatory = $true, Position = 0)] [string] $RepositoryRoot,
 	[Parameter(Mandatory = $true, Position = 1)] [string] $Environment,
-	[Parameter(Mandatory = $false)] [switch] $Headless
+	[Parameter(Mandatory = $false)] [switch] $Headless,
+	[Parameter(Mandatory = $false)] [switch] $Silent
 )
 
 # These modules are required by this script so we import them here. They will be unloaded and reloaded when calling "Initialize-Shell"
@@ -31,7 +32,7 @@ class ModuleContainer {
 		$this._Modules = New-Object System.Collections.Generic.HashSet[System.String]
 	}
 
-	[bool] load($Name, $ModulePath) {
+	[bool] load($Name, $ModulePath, $Silent) {
 	
 		if ([string]::IsNullOrWhiteSpace($Name)) {
 			return $false
@@ -40,8 +41,8 @@ class ModuleContainer {
 		if ([string]::IsNullOrWhiteSpace($ModulePath)) {
 			return $false
 		}
-		
-		Write-Host -NoNewLine "Loading module ""$Name""..."
+
+		if (-not $Silent) { Write-Host -NoNewLine "Loading module ""$Name""..." }
 		
 		try {
 			$ErrorActionPreference = "Stop"
@@ -53,11 +54,11 @@ class ModuleContainer {
 			Import-Module "$ModulePath"
 		} 
 		catch {
-			Write-Host -ForegroundColor Red "FAILED: $($_.Exception.Message)"
+			if (-not $Silent) { Write-Host -ForegroundColor Red "FAILED: $($_.Exception.Message)" }
 			return $false
 		}
 		
-		Write-Host -ForegroundColor Green "OK"
+		if (-not $Silent) { Write-Host -ForegroundColor Green "OK" }
 		$null = $this._Modules.Add($Name.ToLower())
 		
 		return $true
@@ -79,7 +80,7 @@ function Initialize-Shell {
 
 	$PreviousErrorActionPreference = $ErrorActionPreference
 	$ErrorActionPreference = "Continue"
-	write-host ""
+	if (-not $Silent) { write-host "" }
 	
 	$classPaths = @(
 		(Join-Path $PSScriptRoot   modules),
@@ -91,7 +92,7 @@ function Initialize-Shell {
 	
 	$global:System.Modules = New-Object ModuleContainer
 
-	Write-Host -NoNewLine "Loading external dependencies..."
+	if (-not $Silent) { Write-Host -NoNewLine "Loading external dependencies..." }
 	Push-Location $PSScriptRoot
 
 	$paketExecutable = "$PSScriptRoot\.paket\paket.exe"
@@ -108,22 +109,22 @@ function Initialize-Shell {
 		$paketErrors = @($paketOutput | Foreach-Object { if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_ } }) 
 		$compositePaketError = $paketErrors -join [Environment]::NewLine
 		
-		Write-Host -ForegroundColor Red "FAILED: $compositePaketError"
+		if (-not $Silent) { Write-Host -ForegroundColor Red "FAILED: $compositePaketError" }
 		$success = $false
 	}
 
 	$ErrorActionPreference = "Stop"
 	
 	if (-$success){
-		Write-Host -ForegroundColor Green "OK"
+		if (-not $Silent) { Write-Host -ForegroundColor Green "OK" }
 
 		foreach($class in $classes) 
 		{
-			$success = $success -and ($global:System.Modules.load($class.BaseName, $class.FullName))
+			$success = $success -and ($global:System.Modules.load($class.BaseName, $class.FullName, $Silent))
 		}
 	}
 	
-	Write-Host ""
+	if (-not $Silent) { Write-Host "" }
 
 	$ErrorActionPreference = $PreviousErrorActionPreference
 	$PreviousErrorActionPreference = $null
@@ -156,21 +157,25 @@ if (-not $global:System.IsHeadlessShell) {
 		$displayTitle = "$(([IO.DirectoryInfo] $global:System.RootDirectory).Name)"
 	}
 
-	write-host -ForegroundColor cyan -NoNewline $displayTitle
-	write-host -ForegroundColor white " Developer Shell"
-	write-host -ForegroundColor white "Version $($global:System.Version)"
+    if (-not $Silent) {
+	    write-host -ForegroundColor cyan -NoNewline $displayTitle
+	    write-host -ForegroundColor white " Developer Shell"
+	    write-host -ForegroundColor white "Version $($global:System.Version)"
+	}
 	
 	$licenseFiles = @(
 		'LICENSE',
 		'LICENSE.txt'
 	)
-	
-	foreach($licenseFile in $licenseFiles) {
-		$licenseFullPath = Join-Path $PSScriptRoot "..\..\$licenseFile"
-		if (Test-Path -PathType Leaf $licenseFullPath) {
-			$licenseText = (Get-Content -Raw $licenseFullPath | Expand-Template).Trim(@("`r","`n"))
-			write-host -ForegroundColor Gray "`n$licenseText"
-		}
+
+	if (-not $Silent) {
+        foreach($licenseFile in $licenseFiles) {
+            $licenseFullPath = Join-Path $PSScriptRoot "..\..\$licenseFile"
+            if (Test-Path -PathType Leaf $licenseFullPath) {
+                $licenseText = (Get-Content -Raw $licenseFullPath | Expand-Template).Trim(@("`r","`n"))
+                write-host -ForegroundColor Gray "`n$licenseText"
+            }
+        }
 	}
 }
 
