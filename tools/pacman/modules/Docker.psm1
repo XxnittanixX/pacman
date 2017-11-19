@@ -82,7 +82,7 @@ function Invoke-DockerScript {
 			$commands = @($Package.EffectiveConfiguration.getObject().docker.scripts.$Name) | where-object { $_ -ne $null }
 			
 			foreach ($command in $commands) {
-			    write-verbose "Executing: "docker $command""
+			    write-verbose "Executing: ""docker $command"""
 				invoke-expression "docker $command"
 			}
 		}
