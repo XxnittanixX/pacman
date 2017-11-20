@@ -9,10 +9,14 @@ repository. Simply open up a PowerShell, change into the directory you want to
 create your repository in, and enter the following command:
 
 	iwr https://raw.githubusercontent.com/xyrus02/pacman/master/tools/pacman/InstallShell.ps1 | iex
+	
+You may also use the shortened version:
+
+	iwr http://bit.ly/pacinst | iex
 
 This command will execute the content of the file behind the above URL. Even 
-though I know the script is safe, I generally advise you to check the content
-before executing.
+though I know the script is safe, **I generally advise you to check the content
+before executing.**
 
 ## Usage
 After installation, the shell can be accessed with the file `shell.cmd`. This
