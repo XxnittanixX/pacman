@@ -41,7 +41,7 @@ function Update-DockerImage {
 			$includes = @($dockerConfig.buildContext.include) | where-object { $_ -ne $null } | foreach-object { join-path $ref.Directory.FullName $_ }
 			$excludes = @($dockerConfig.buildContext.exclude) | where-object { $_ -ne $null } | foreach-object { join-path $ref.Directory.FullName $_ }
 			
-			$files = $includes | foreach-object { get-childitem -path (pkg app/toki-db).directory.fullname -exclude $excludes }
+			$files = $includes | foreach-object { get-childitem -path $ref.directory.fullname -exclude $excludes }
 			$files | foreach-object { copy-item -recurse -path $_.FullName -destination $tempDir }
 			
 			push-location $tempDir
