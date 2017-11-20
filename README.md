@@ -12,7 +12,7 @@ create your repository in, and enter the following command:
 	
 You may also use the shortened version:
 
-	iwr http://bit.ly/pacinst | iex
+	iwr http://bit.ly/pacinit | iex
 
 This command will execute the content of the file behind the above URL. Even 
 though I know the script is safe, **I generally advise you to check the content
