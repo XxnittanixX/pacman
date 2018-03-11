@@ -91,37 +91,11 @@ function Initialize-Shell {
 	$success = $true
 	
 	$global:System.Modules = New-Object ModuleContainer
-
-	if (-not $Silent) { Write-Host -NoNewLine "Loading external dependencies..." }
-	Push-Location $PSScriptRoot
-
-	$paketExecutable = "$PSScriptRoot\.paket\paket.exe"
-	$paketOutput = & $paketExecutable install -s 2>&1
-	$paketErrors = @($paketOutput | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | Foreach-Object { $_.Exception.Message })
-
-	Pop-Location
-
-	if ($LASTEXITCODE -ne 0) {
-		if ($paketErrors.Length -eq 0) {
-			$paketErrors = @("Paket failed with exit code $LASTEXITCODE.")
-		}
-
-		$paketErrors = @($paketOutput | Foreach-Object { if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_ } }) 
-		$compositePaketError = $paketErrors -join [Environment]::NewLine
-		
-		if (-not $Silent) { Write-Host -ForegroundColor Red "FAILED: $compositePaketError" }
-		$success = $false
-	}
-
 	$ErrorActionPreference = "Stop"
 	
-	if (-$success){
-		if (-not $Silent) { Write-Host -ForegroundColor Green "OK" }
-
-		foreach($class in $classes) 
-		{
-			$success = $success -and ($global:System.Modules.load($class.BaseName, $class.FullName, $Silent))
-		}
+	foreach($class in $classes) 
+	{
+		$success = $success -and ($global:System.Modules.load($class.BaseName, $class.FullName, $Silent))
 	}
 	
 	if (-not $Silent) { Write-Host "" }
