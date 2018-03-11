@@ -4,6 +4,9 @@ if ($PSVersionTable.PSVersion.Major -lt 5) {
 
 $Branch = "master"
 
+# Bugfix 20180311_FailedCreateTlsSslSecuredChannel
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12;
+
 [IO.DirectoryInfo] $TargetDirectory = (Get-Location).Path
 [IO.DirectoryInfo] $TempDirectory = Join-Path "$env:LOCALAPPDATA" "XyrusWorx\Pacman\Setup\$((get-date).Ticks.ToString("X"))"
 [IO.DirectoryInfo] $TargetPacmanDirectory = Join-Path $TargetDirectory.FullName "tools\pacman"
